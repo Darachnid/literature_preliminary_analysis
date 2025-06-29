@@ -1,0 +1,60 @@
+blocID,type,subtype,themeID
+Consequence,NA,NA,"""Ethical"" Problems"
+Limitation,NA,NA,Attributes of Consumption Culture
+Limitation,NA,NA,Attributes of Production Culture
+Opportunity,the Environment,NA,Biodiversity Impacts
+Barrier,Development,NA,Cell Maintenance
+Barrier,Development,NA,Cell Sources and Differentiation
+Opportunity,Humans,Public Health,Chronic Disease Preevention
+Opportunity,the Environment,NA,Climate Change Impacts
+Barrier,Adoption,NA,Cost or Willingness to Pay
+Consequence,NA,NA,Disconnecting from Food Sources
+Barrier,Adoption,Public Distrust,Disgust reactions
+Opportunity,Humans,NA,Economic - (includes energy efficiency)
+Barrier,Development,NA,Energy Use is High
+Opportunity,the Environment,NA,Excessive Fresh Water Use
+Barrier,Adoption,Public Distrust,False Information concerns
+Opportunity,Humans,Public Health,Food Safety Improvements
+Barrier,Adoption,Public Distrust,Health Concerns
+Consequence,NA,NA,Health Issues
+Opportunity,NA,NA,Humans
+Opportunity,Humans,Public Health,Increasing Food Security
+Barrier,Development,NA,Information is kept proprietary
+Barrier,Development,NA,Investments
+Limitation,NA,NA,It is disconnected from Nature
+Consequence,NA,NA,Job loss
+Opportunity,the Environment,NA,Land Use or Land Change
+Opportunity,NA,NA,Livestock
+Opportunity,Humans,NA,Location Dependency
+Barrier,Development,NA,Media and Ingredients
+Consequence,NA,NA,More Waste
+Barrier,Adoption,Public Distrust,Neophobia
+Barrier,Adoption,Public Distrust,Non-specified Distrust
+Opportunity,the Environment,NA,Non-specified Env
+Opportunity,Humans,Public Health,Non-specified Health
+Opportunity,Humans,Public Health,Offering Better Nutrition
+Opportunity,the Environment,NA,Other
+Consequence,NA,NA,Overconsumption Continues
+Consequence,NA,NA,Overconsumption Continues B
+Opportunity,the Environment,NA,Pollution
+Barrier,Development,NA,Poor Sensory Attribute
+Consequence,NA,NA,Power Inequities
+Barrier,Development,NA,Process and Bioreactors
+Barrier,Adoption,NA,Public Distrust
+Opportunity,Humans,NA,Public Health
+Barrier,Adoption,NA,Regulations
+Barrier,Adoption,Public Distrust,Religious beliefs
+Barrier,Adoption,Public Distrust,Safety Concerns
+Barrier,Development,NA,Scaffolds
+Barrier,Adoption,Public Distrust,The way it is Framed
+Barrier,Adoption,Public Distrust,Unnatural perceptions
+Opportunity,the Environment,NA,Wasteful production methods
+Barrier,Adoption,Public Distrust,Withheld Information concerns
+Barrier,Adoption,Public Distrust,it being unfamiliar
+Barrier,Development,NA,non-Nutritious
+Barrier,Development,NA,non-specified barrier to scale
+Barrier,Development,NA,other Dev
+Consequence,NA,NA,other consequence
+Barrier,Adoption,Public Distrust,other distrust
+Barrier,Adoption,Public Distrust,poor Sensory Attributes
+Opportunity,NA,NA,the Environment

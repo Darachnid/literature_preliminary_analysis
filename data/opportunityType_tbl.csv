@@ -1,4 +1,4 @@
 opportunityTypeID,opportunityTypeDescription,blocID
-Humans,NA,Opportunity
-Livestock,NA,Opportunity
-the Environment,NA,Opportunity
+Humans,Human wellbeing is inhibited by conventional food systems,Opportunity
+Livestock,Livestock wellbeing is inhibited by conventional food systems,Opportunity
+the Environment,Environmental wellbeing is inhibited by conventional food systems,Opportunity

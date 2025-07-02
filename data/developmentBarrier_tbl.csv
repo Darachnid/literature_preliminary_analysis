@@ -1,13 +1,13 @@
 developmentBarrierID,barrierTypeID,blocID,developmentBarrierDescription
-Cell Maintenance,Development,Barrier,Problems cell line longevity
-Media and Ingredients,Development,Barrier,Problems with media or any ingredients added to it
-Investments,Development,Barrier,Problems with researchers and start-ups lacking ample funds
-Energy Use is High,Development,Barrier,Problems with high energy usage or high carbon emmissions
-Process and Bioreactors,Development,Barrier,Problems framed systematically about the process of developing cultivated meat or problems with bio-reactors
-Poor Sensory Attribute,Development,Barrier,Problems with attaining desirable metrics for snesory attributes
-Scaffolds,Development,Barrier,Problems sourcing or using skeletal structures for cells to adhere to in cultivated meat production
-non-Nutritious,Development,Barrier,Problems with attaining desirable nutritional attributes
-Information is kept proprietary,Development,Barrier,Problems with innovation resulting from a lack of information-sharing
-non-specified barrier to scale,Development,Barrier,Problems with development or scale or technological problems without detailed specification
-other,Development,Barrier,Barriers to scale not meantioned
-Cell Sources and Differentiation,Development,Barrier,Problems with optimizing or sourcing cell lines or problems with cells ability to become a more specialized cell type
+Cell Maintenance,Development,Barrier,Cell line longevity presents a barrier to scaled development of CM
+Media and Ingredients,Development,Barrier,Media or the ingredients added to it present a barrier to scaled development of CM
+Investments,Development,Barrier,Researchers or start-ups lacking ample funds present a barrier to scaled development of CM
+Energy Use is High,Development,Barrier,High energy usage or high carbon emmissions present a barrier to scaled development of CM
+Process and Bioreactors,Development,Barrier,Process inefficiencies or bioreactors present a barrier to scaled development of CM
+Poor Sensory Attribute,Development,Barrier,Attaining desirable sensory attributes presents a barrier to scaled development of CM
+Scaffolds,Development,Barrier,Scaffolding materials present a barrier to scaled development of CM
+non-Nutritious,Development,Barrier,Attaining desirable nutritional attributes presents a barrier to scaled development of CM
+Information is kept proprietary,Development,Barrier,Lack of information-sharing between researchers presents a barrier to scaled development of CM
+non-specified barrier to scale,Development,Barrier,Scale or technological problems present barriers to scaled development of CM
+other,Development,Barrier,A problem not listed presents a barrier to scaled development of CM
+Cell Sources and Differentiation,Development,Barrier,Optimizing or sourcing cell lines or cells ability to become a more specialized cell type present barriers to scaled development of CM

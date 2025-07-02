@@ -1,7 +1,7 @@
 sensesDistrustedID,sensesDistrustedDescription,distrustBarrier,adoptionBarrierID,barrierTypeID,blocID
-Looks,NA,poor Sensory Attributes,Public Distrust,Adoption,Barrier
-Smell,NA,poor Sensory Attributes,Public Distrust,Adoption,Barrier
-Taste,NA,poor Sensory Attributes,Public Distrust,Adoption,Barrier
-Texture,NA,poor Sensory Attributes,Public Distrust,Adoption,Barrier
-Tissue Differentiation,NA,poor Sensory Attributes,Public Distrust,Adoption,Barrier
-not specified,NA,poor Sensory Attributes,Public Distrust,Adoption,Barrier
+Looks,The anticipated appearance of CM prevents widespread adoption,poor Sensory Attributes,Public Distrust,Adoption,Barrier
+Smell,The anticipated smell of CM prevents widespread adoption,poor Sensory Attributes,Public Distrust,Adoption,Barrier
+Taste,The anticipated flavor of CM prevents widespread adoption,poor Sensory Attributes,Public Distrust,Adoption,Barrier
+Texture,The anticipated texture of CM prevents widespread adoption,poor Sensory Attributes,Public Distrust,Adoption,Barrier
+Tissue Differentiation,The anticipated tissue differentiation of CM prevents widespread adoption,poor Sensory Attributes,Public Distrust,Adoption,Barrier
+not specified,Anticipated sensory attributes of CM prevent widespread adoption,poor Sensory Attributes,Public Distrust,Adoption,Barrier

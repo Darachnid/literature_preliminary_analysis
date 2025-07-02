@@ -1,9 +1,9 @@
 environmentOpportunityID,environmentOpportunityDescription,opportunityType,blocID
-Biodiversity Impacts,NA,the Environment,Opportunity
-Climate Change Impacts,NA,the Environment,Opportunity
-Excessive Fresh Water Use,NA,the Environment,Opportunity
-Land Use or Land Change,NA,the Environment,Opportunity
-Non-specified,NA,the Environment,Opportunity
-Other,NA,the Environment,Opportunity
-Pollution,NA,the Environment,Opportunity
-Wasteful production methods,NA,the Environment,Opportunity
+Biodiversity Impacts,Biodiversity is decreased by conventional food systems,the Environment,Opportunity
+Climate Change Impacts,Climate change is increased by conventional food systems,the Environment,Opportunity
+Excessive Fresh Water Use,Fresh water depletion is increased by conventional food systems,the Environment,Opportunity
+Land Use or Land Change,Land use and change will increase due to conventional food systems,the Environment,Opportunity
+Non-specified,Environmental degradation occurs from conventional food systems,the Environment,Opportunity
+Other,An environmental degradation not listed occurs from conventional food systems,the Environment,Opportunity
+Pollution,Pollution is increased by conventional food systems,the Environment,Opportunity
+Wasteful production methods,Excessive waste is produced by conventional food systems,the Environment,Opportunity

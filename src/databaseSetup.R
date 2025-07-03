@@ -98,8 +98,7 @@ paper_tbl <- doi_data |>
     journalID = container.title,
     dateCreated = created,
     references = reference.count,
-    referencedBy = is.referenced.by.count
-  )
+    referencedBy = is.referenced.by.count)
 
 
 # ---- Reference statistics ------------------------------------------------- #
@@ -209,21 +208,89 @@ write_csv(bloc, "out/tables/blocMetadata.csv")
 
 
 # ---- Match DOIs to themeIDs ---------------------------------------------- #
+# =====================================================
+# Purpose: Create a table of theme fulfillment per paper and group
+# Inputs: bloc (tibble with 'themeID'), clean (long-format tibble with
+#         'doi', 'group', 'variable', 'value')
+# Outputs: paper_theme_tbl (tibble with rows per theme per paper/group)
+# =====================================================
 
-paper_theme_tbl <- tibble(doi = character(), value = character())
+# ---- initialize output table ----
 
+paper_theme_tbl <- tibble(
+  doi = character(),
+  themeID = character(),
+  group = character(),
+  section = character(),
+  existence = character(),
+  fulfillment = character()
+)
+
+# ---- loop over each themeID in bloc ----
 for (i in 1:nrow(bloc)) {
   theme <- as.character(bloc[i, "themeID", drop = TRUE])
-  doilist <- clean |>
-    select(doi = paper.doi_1, value) |>
+  
+  # ---- find all doi-group combinations that contain this theme ----
+  theme_matches <- clean |>
     filter(value == theme) |>
+    select(doi, group) |>
     distinct()
-  if (nrow(doilist) > 0) {
-    paper_theme_tbl <- bind_rows(paper_theme_tbl, doilist)
+  
+  if (nrow(theme_matches) > 0) {
+    # ---- for each (doi, group), extract existence/fulfillment/section ----
+    for (j in 1:nrow(theme_matches)) {
+      doi_j <- theme_matches$doi[j]
+      group_j <- theme_matches$group[j]
+      
+      
+      ef_vals <- clean |>
+        filter(doi == doi_j, group == group_j, value == theme) |>
+        transmute(
+          section = as.character(section),
+          existence = as.character(existence),
+          fulfillment = as.character(fulfillment)
+        ) |>
+        distinct()
+      
+      
+      # Ensure the missing columns are added with NA before mutate
+      missing_cols <- setdiff(c("section", "existence", "fulfillment"), names(ef_vals))
+      ef_vals[missing_cols] <- NA_character_
+      
+      ef_vals <- ef_vals |>
+        mutate(
+          section = section,
+          existence = existence,
+          fulfillment = fulfillment
+        )
+      
+      # ---- ensure presence of all expected columns even if missing ----
+      ef_vals <- ef_vals %>%
+        replace_na(list(
+          section = NA_character_,
+          existence = NA_character_,
+          fulfillment = NA_character_
+        ))
+      
+      # ---- append to output table ----
+      paper_theme_tbl <- bind_rows(
+        paper_theme_tbl,
+        tibble(
+          doi = doi_j,
+          themeID = theme,
+          group = as.character(group_j),
+          section = as.character(ef_vals$section %||% NA_character_),
+          existence = as.character(ef_vals$existence %||% NA_character_),
+          fulfillment = as.character(ef_vals$fulfillment %||% NA_character_)
+        )
+      )
+    }
   } else {
+    # ---- notify if theme not matched anywhere in dataset ----
     message(paste0(theme, " is not yet present in the dataset."))
   }
 }
+
 
 write_csv(paper_theme_tbl, "out/tables/paper_theme_tbl.csv")
 

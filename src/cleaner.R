@@ -74,20 +74,10 @@ final <- df_long_rest |>
   filter(variable != "develop.or.adopt") |>
   filter(value != "Humans") |>
   filter(value != "Public Health") |>
-  filter(value != "Poor Sensory Attribute")
-
-
-
-
-rm(widedata, cols_to_pivot)
-
-
-# ---- Filter out irrelevant and empty entries ---------------------------- #
-
-longdata_clean <- longdata |>
-  filter(variable != "section") |>
-  filter(!is.na(value), value != "", value != "yes")
-rm(longdata)
+  filter(value != "Poor Sensory Attribute") |>
+  rename(coder = coder.id,
+         doi = paper.doi_1,
+         aim = Aim)
 
 
 # ---- Write cleaned output ------------------------------------------------ #

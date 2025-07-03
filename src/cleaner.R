@@ -63,10 +63,12 @@ df_long_rest <- longdata |>
 # Step 3: Join them back together on ID columns (like group)
 final <- df_long_rest |>
   left_join(df_wide, by = c("paper.doi_1", "group", "Aim", "coder.id", "performance.type")) |>
-  filter(variable != "more") |>
+  filter(variable != "more") |> 
+  unnest(existence) |>
+  unnest(fulfillment) |>
   mutate(
-    existence = as.numeric(str_extract(existence, "^\\d+(\\.\\d+)?")),
-    fulfillment = as.numeric(str_extract(fulfillment, "^\\d+(\\.\\d+)?"))
+    existence = as.numeric(str_extract(existence, "^-?\\d+(\\.\\d+)?")),
+    fulfillment = as.numeric(str_extract(fulfillment, "^-?\\d+(\\.\\d+)?"))
   ) |>
   rename(BLOC = problem.or.benefit) |>
   separate_rows(BLOC, sep = ",") |>
@@ -77,8 +79,10 @@ final <- df_long_rest |>
   filter(value != "Poor Sensory Attribute") |>
   rename(coder = coder.id,
          doi = paper.doi_1,
-         aim = Aim)
-
+         aim = Aim) |> 
+  unnest(section) |>
+  write_csv("out/tables/cleandata.csv")
+final
 
 # ---- Write cleaned output ------------------------------------------------ #
 

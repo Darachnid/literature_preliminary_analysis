@@ -40,7 +40,45 @@ longdata <- widedata |>
     names_to = c("group", "variable"),
     names_pattern = "^X(\\d+)_(.*)",
     values_to = "value"
+  ) |>
+  filter(value != "") |>
+  select(coder.id, paper.doi_1, Aim,performance.type, 
+         Aim.disagree, Q49, group, variable, value) |>
+  mutate(Aim = if_else(Q49 != "", Q49, Aim)) |>
+  select(-Q49, -Aim.disagree) 
+
+meta_vars <- c("existence", "fulfillment", "section", "problem.or.benefit")
+
+df_wide <- longdata |>
+  filter(variable %in% meta_vars) |>
+  pivot_wider(
+    names_from = variable,
+    values_from = value
   )
+
+# Step 2: Keep all other variables in long format and join them to the meta info
+df_long_rest <- longdata |>
+  filter(!variable %in% meta_vars)
+
+# Step 3: Join them back together on ID columns (like group)
+final <- df_long_rest |>
+  left_join(df_wide, by = c("paper.doi_1", "group", "Aim", "coder.id", "performance.type")) |>
+  filter(variable != "more") |>
+  mutate(
+    existence = as.numeric(str_extract(existence, "^\\d+(\\.\\d+)?")),
+    fulfillment = as.numeric(str_extract(fulfillment, "^\\d+(\\.\\d+)?"))
+  ) |>
+  rename(BLOC = problem.or.benefit) |>
+  separate_rows(BLOC, sep = ",") |>
+  separate_rows(value, sep = ",") |>
+  filter(variable != "develop.or.adopt") |>
+  filter(value != "Humans") |>
+  filter(value != "Public Health") |>
+  filter(value != "Poor Sensory Attribute")
+
+
+
+
 rm(widedata, cols_to_pivot)
 
 
@@ -54,5 +92,5 @@ rm(longdata)
 
 # ---- Write cleaned output ------------------------------------------------ #
 
-write_csv(longdata_clean, "out/tables/cleandata.csv")
+write_csv(final, "out/tables/cleandata.csv")
 rm(longdata_clean)

@@ -73,10 +73,6 @@ final <- df_long_rest |>
   rename(BLOC = problem.or.benefit) |>
   separate_rows(BLOC, sep = ",") |>
   separate_rows(value, sep = ",") |>
-  filter(variable != "develop.or.adopt") |>
-  filter(value != "Humans") |>
-  filter(value != "Public Health") |>
-  filter(value != "Poor Sensory Attribute") |>
   rename(coder = coder.id,
          doi = paper.doi_1,
          aim = Aim) |> 

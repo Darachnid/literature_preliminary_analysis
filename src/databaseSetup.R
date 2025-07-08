@@ -85,21 +85,30 @@ section_tbl <- read_csv("data/Section_tbl.csv") |>
 # ---- Fetch DOI metadata using CrossRef ----------------------------------- #
 
 DOIs <- data |>
-  select(doi = `paper-doi_1`) |>
+  dplyr::select(doi = `paper-doi_1`) |>
   distinct()
 
 doi_data <- cr_works(DOIs$doi)$data
 rm(DOIs)
 
+aimLink <- data |>
+  dplyr::select(`paper-doi_1`, Aim, Q49, `Aim-disagree`) |>
+  mutate(aim = if_else(is.na(Q49), Aim, Q49)) |>
+  dplyr::select(doi = `paper-doi_1`, aim) |>
+  distinct(doi, aim)
+
 paper_tbl <- doi_data |>
-  select(
+  dplyr::select(
     doi,
+    title,
+    url,
     publisherID = publisher,
     journalID = container.title,
     dateCreated = created,
     references = reference.count,
-    referencedBy = is.referenced.by.count)
-
+    referencedBy = is.referenced.by.count) |>
+  left_join(aimLink, by = "doi")
+write_csv(paper_tbl, file = "out/tables/paper_tbl.csv")
 
 # ---- Reference statistics ------------------------------------------------- #
 

@@ -1,0 +1,340 @@
+---
+title: "LiteratureAnalysisVisuals"
+author: "Christopher LaRosee"
+format: html
+editor: visual
+---
+
+## Literature Analysis Visuals
+
+### Prepare Data for Analysis\\
+
+```{r}
+source(file = "src/cleaner.R") # Turn data from very wide to long
+source(file = "src/databaseSetup.R") # Initialize a Relational Database Structure
+source(file = "src/themeCounter.R") # Count the 
+```
+
+### What areas of improvement are recognized in existing food systems?
+
+#### Data Prep
+
+```{r}
+library(here)
+library(ggpattern)
+library(ggstats)
+library(tidyverse)
+themes <- read_csv(here("out", "tables", "paper_theme_tbl.csv")) 
+opps_key <- read_csv(here("data", "opportunityType_tbl.csv")) 
+opps <- opps_key |>
+  select(themeID = opportunityTypeID, blocID)  |>
+  full_join(themes, by = c("themeID")) |>
+  filter(themeID %in% c("Humans", "the Environment", "Livestock")) 
+tally <- themes |>
+  select(doi) 
+
+paperCount <- unique(tally$doi) |>
+  length()
+```
+
+#### Environment vs Humans vs Livestock (Existence Sentiment)
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(viridis)
+
+EHL_caption <- "Plot 1: Percentage of reviewed papers acknowledging problems with current food systems related to the well-being of the Environment, Humans, and Livestock. Blue bars indicate perceived existence of problems; Red bars indicate denial of the need for improvment. Lighter shades represent hedged (less confident) statements."
+
+
+# Define Likert existence levels and labels
+existence_levels <- c(-0.5, 0.0, 0.5, 1.0)
+existence_labels <- c(
+  `-0.5` = "Disagree",
+  `0`    = "Neutral",
+  `0.5`  = "Agree",
+  `1`    = "StronglyAgree"
+)
+
+# Format to wide table
+likert_wide <- opps %>%
+  filter(!is.na(existence)) %>%
+  distinct(themeID, doi, existence) %>%
+  complete(themeID, existence = existence_levels, fill = list(doi = NA)) |>
+  group_by(themeID, existence) %>%
+  summarise(n = n_distinct(doi, na.rm = TRUE), .groups = "drop") %>%
+  group_by(themeID) %>%
+  mutate(percent = n / sum(n)) %>%
+  ungroup() %>%
+  mutate(
+    level = recode(as.character(existence), !!!existence_labels)
+  ) %>%
+  dplyr::select(themeID, level, percent) %>%
+  pivot_wider(names_from = level, values_from = percent, values_fill = 0)
+
+
+print(likert_wide)
+library(HH)
+EHL_plot <- HH::likert(themeID~., likert_wide, as.percent = TRUE, 
+           main = "Areas for Improving Impacts on Humans, Livestock, and the Environment Across All Papers",
+           xlab = "Percentage of Papers Identifying Room for Improvement",
+           ylab = "Wellbeing Domain")
+EHL_plot
+
+```
+
+#### Distribution of Aims
+
+```{r}
+
+```
+
+#### Acceptance
+
+```{r}
+library(here)
+paper_meta <- read_csv(here("out", "tables", "paper_tbl.csv"))
+
+aims <- unique(paper_meta$aim)
+papers <- rep(NA, times = length(aims))
+i <- 0
+all_names <- tibble(aims, papers) |>
+  filter(!is.na(aims)) |>
+  filter(!aims %in% c("MIN", "NA", "Review"))
+
+while (i < nrow(all_names)) {
+  i <- i + 1
+  selection <- aims[i]
+    # Format to wide table
+  likert_wide <- opps %>%
+    filter(!is.na(existence)) %>%
+    distinct(themeID, doi, existence) %>%
+    left_join(paper_meta, by = "doi") %>%
+    filter(aim == selection) %>%
+    group_by(themeID, existence) %>%
+    summarise(n = n_distinct(doi), .groups = "drop") %>%
+    group_by(themeID) %>%
+    mutate(percent = n / sum(n)) %>%
+    ungroup() %>%
+    mutate(
+      level = recode(as.character(existence), !!!existence_labels)
+    ) %>%
+    complete(themeID, level = c("StronglyDisagree", "Disagree", "Neutral", "Agree", "StronglyAgree"), fill = list(percent = 0)) |>
+    dplyr::select(themeID, level, percent) %>%
+    pivot_wider(names_from = level, values_from = percent, values_fill = 0)
+
+  totalN <- opps %>%
+    left_join(paper_meta, by = "doi") %>%
+    filter(aim == selection) %>%
+    distinct(doi) %>%
+    nrow()
+
+  all_names[i, "aims"] <- selection
+  all_names[i, "papers"] <- totalN
+    
+  likert_order <- c("StronglyDisagree", "Disagree", "Neutral", "Agree", "StronglyAgree")
+  likert_wide <- likert_wide[, c("themeID", likert_order)]
+  
+  EHL_plot <- HH::likert(themeID~., likert_wide, as.percent = TRUE, 
+             main = paste0("Areas for Improving Impacts on Humans, Livestock, and the Environment for Papers About ", all_names[i, 1], " (n = ", as.character(all_names[i, 2]), ")"),
+             xlab = paste0("Percentage of Papers About ", all_names[i, 1],
+                            "Identifying Room for Improvement ", "(n = ", as.character(all_names[i, 2]), ")"),
+             ylab = "Wellbeing Domain")
+  name <- gsub(" ", "-", (paste0("EHL_", selection)))
+  png(filename = here("out", "plots", paste0(name, ".png")),
+      units = "px", width = 2000, height = 500, res = 300)
+  print(EHL_plot)
+  dev.off()
+}
+
+plot_data <- all_names |> filter(!is.na(aims))
+
+# Create ggplot bar chart
+aim_count <- ggplot(plot_data, aes(x = reorder(aims, -papers), y = papers)) +
+  geom_col(fill = "grey70") +
+  labs(
+    title = "Paper Counts per Aim",
+    x = "Aim",
+    y = "Number of Papers"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), 
+        panel.grid.major = element_line(color = "grey95", 
+                                        size = 0.3),
+        panel.grid.minor = element_line(color = "grey95", 
+                                    size = 0.2)) 
+ggsave(aim_count, filename = here("out", "plots", "aim_counts.png"))
+
+
+```
+
+```{r}
+# assume paper_meta, opps, existence_levels, existence_labels are defined
+
+aims <- unique(paper_meta$aim)
+uniPapers <- length(unique(opps$doi))
+aims <- aims[!aims %in% c("MIN", "NA", "Review")]
+i <- 0
+all_names <- tibble(aim = aims, papers = NA_integer_)
+
+while (i < length(aims)) {
+  i <- i + 1
+  selection <- aims[i]
+  
+   likert_wide <- opps %>%
+    filter(!is.na(existence)) %>%
+    distinct(themeID, doi, existence) %>%
+    left_join(paper_meta, by = "doi") %>%
+    filter(aim == selection) %>%                                   # filter here
+    group_by(themeID, existence) %>%
+    summarise(n = n_distinct(doi), .groups = "drop") %>%
+    group_by(themeID) %>%
+    mutate(percent = n / sum(n)) %>%
+    ungroup() %>%
+    mutate(
+      level = recode(as.character(existence), !!!existence_labels)
+    ) %>%
+    complete(themeID, level = c("StronglyDisagree", "Disagree", 
+                                "Neutral", "Agree", "StronglyAgree"), 
+             fill = list(percent = 0)) %>%
+    dplyr::select(themeID, level, percent) %>%
+    pivot_wider(names_from = level, values_from = percent, values_fill = 0)
+  
+  likert_wide <- likert_wide[, c("themeID", likert_order)]
+  
+  totalN <- opps %>%
+    left_join(paper_meta, by = "doi") %>%
+    filter(aim == selection) %>%
+    distinct(doi) %>%
+    nrow()
+  
+  all_names$papers[i] <- totalN
+  
+  EHL_plot <- HH::likert(themeID~., likert_wide, as.percent = TRUE,
+    main = paste0("Areas for Improving Impacts on Humans, for papers about ", selection, " (n = ", totalN, ")"),
+    xlab = paste0("Percentage of papers about ", selection,  
+                  " identifying room for improvement (n = ", totalN, ")"),
+    ylab = "Wellbeing Domain")
+  
+  name <- paste0("EHL_", gsub(" ", "-", selection), ".png")
+  png(filename = here("out/plots", name),
+      units = "px", width = 2000, height = 500, res = 150)
+  print(EHL_plot)       # ❗️ must use print() for trellis objects
+  dev.off()             # ❗️ close the device to finalize the file
+}
+
+totalN <- opps %>%
+    left_join(paper_meta, by = "doi") %>%
+    distinct(doi) %>%
+    nrow()
+likert_wide <- opps %>%
+  filter(!is.na(existence)) %>%
+  distinct(themeID, doi, existence) %>%
+  left_join(paper_meta, by = "doi") %>%
+  group_by(themeID, existence) %>%
+  summarise(n = n_distinct(doi), .groups = "drop") %>%
+  group_by(themeID) %>%
+  mutate(percent = n / sum(n)) %>%
+  ungroup() %>%
+  mutate(
+    level = recode(as.character(existence), !!!existence_labels)
+  ) %>%
+  complete(themeID, level = c("StronglyDisagree", "Disagree", "Neutral", "Agree", "StronglyAgree"), 
+           fill = list(percent = 0)) %>%
+  dplyr::select(themeID, level, percent) %>%
+  pivot_wider(names_from = level, values_from = percent, values_fill = 0)
+# reorder columns
+likert_order <- c("StronglyDisagree", "Disagree", "Neutral", "Agree", "StronglyAgree")
+likert_wide <- likert_wide[, c("themeID", likert_order)]
+
+  
+  EHL_plot <- HH::likert(themeID~., likert_wide, as.percent = TRUE,
+    main = paste0("Areas for Improving Impacts on Humans for ALL papers (n = ",
+                  uniPapers, ")"), 
+    xlab = paste0("Percentage of ALL papers",  
+                  " identifying room for improvement (n = ", uniPapers, ")"),
+    ylab = "Wellbeing Domain")
+  
+final_name <- "EHL_ALL.png"
+
+png(filename = here("out/plots", final_name),
+    units = "px", width = 2000, height = 500, res = 150)
+print(EHL_plot)
+dev.off()
+       
+```
+
+#### Environment
+
+```{r}
+
+
+# ---- Fix stacking with cumulative positions ----
+df <- df %>%
+  arrange(themeID, sentiment, existence) %>%
+  group_by(themeID, sentiment) %>%
+  mutate(
+    xmin = if_else(
+      sentiment == "positive",
+      lag(cumsum(percent), default = 0),
+      -cumsum(percent)
+    ),
+    xmax = if_else(
+      sentiment == "positive",
+      cumsum(percent),
+      lag(-cumsum(percent), default = 0)
+    )
+  ) %>%
+  ungroup()
+
+# ---- Rebuild y and rectangle bounds ----
+df <- df %>%
+  mutate(
+    y = as.numeric(factor(themeID, levels = c("the Environment", "Humans", "Livestock"))),
+    ymin = y - 0.3,
+    ymax = y + 0.3
+  )
+
+# ---- Plot using viridis fill scale ----
+EHL_plot <- ggplot(df) +
+  geom_rect(aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax,
+                fill = fill, alpha = alpha),
+            color = "black") +
+  scale_fill_viridis_d(
+    option = "D",
+    begin = 0.2,
+    end = 0.8,
+    name = "Valence"
+  ) +
+  scale_alpha_continuous(range = c(0.5, 1), guide = "none") +
+  scale_x_continuous(
+    limits = c(-100, 100),
+    breaks = seq(-100, 100, 25),
+    labels = function(x) paste0(abs(x), "%")
+  ) +
+  scale_y_continuous(
+    breaks = 1:3,
+    labels = c("the Environment", "Humans", "Livestock"),
+    expand = c(0.05, 0.05)
+  ) +
+  labs(x = "Percent of Papers Mentioning Theme", y = NULL,
+       caption = EHL_caption) +
+  theme_minimal() +
+  theme(panel.grid.major.y = element_blank())
+
+EHL_plot
+
+```
+
+#### Humans
+
+```{r}
+
+```
+
+#### Livestock
+
+```{r}
+
+```

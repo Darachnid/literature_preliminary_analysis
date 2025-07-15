@@ -19,7 +19,7 @@ library(tidyverse)
 
 # ---- Read and trim raw data --------------------------------------------- #
 
-raw <- read.csv("data/Claim+Analysis_June+18,+2025_09.53.csv")
+raw <- read.csv("data/Claim+Analysis_July+15,+2025_09.48.csv")
 raw <- raw[3:nrow(raw), ]  # Skip Qualtrics metadata rows
 
 

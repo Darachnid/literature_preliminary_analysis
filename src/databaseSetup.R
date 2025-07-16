@@ -97,7 +97,9 @@ aimLink <- data |>
   dplyr::select(doi = `paper-doi_1`, aim) |>
   distinct(doi, aim)
 
+## Select the relevant fields
 paper_tbl <- doi_data |>
+  unnest(funder) |>
   dplyr::select(
     doi,
     title,
@@ -106,7 +108,8 @@ paper_tbl <- doi_data |>
     journalID = container.title,
     dateCreated = created,
     references = reference.count,
-    referencedBy = is.referenced.by.count) |>
+    referencedBy = is.referenced.by.count, 
+    funder_name = name, funder_doi = DOI) |>
   left_join(aimLink, by = "doi")
 write_csv(paper_tbl, file = "out/tables/paper_tbl.csv")
 

@@ -28,7 +28,7 @@ set.seed(123)           # Ensure consistent random suffix assignment
 
 # ---- Load raw coder export and remove headers ----------------------------- #
 
-dat <- read_csv("data/Claim+Analysis_June+18,+2025_09.53.csv")
+dat <- read_csv("data/Claim+Analysis_July+15,+2025_09.48.csv")
 data <- dat[3:nrow(dat), ]  # Skip Qualtrics metadata and prompts
 rm(dat)
 

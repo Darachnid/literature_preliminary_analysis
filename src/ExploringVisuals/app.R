@@ -65,7 +65,9 @@ create_rain_cloud_plot <- function() {
   # 45-day conditional jitter
   set.seed(123)
   plotdata <- plotdata %>%
-    mutate(date_bin = as.Date(cut(Date, breaks = "45 days"))) %>%
+    mutate(Date = as.Date(Date)) %>%
+    filter(!is.na(Date)) %>%
+    mutate(date_bin = as.Date(cut(Date, breaks = "45 days"))) |>
     group_by(Aim, date_bin) %>%
     mutate(
       n_dup  = n(),

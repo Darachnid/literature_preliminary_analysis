@@ -28,7 +28,7 @@ set.seed(123)           # Ensure consistent random suffix assignment
 
 # ---- Load raw coder export and remove headers ----------------------------- #
 
-dat <- read_csv("data/Claim+Analysis_July+15,+2025_09.48.csv")
+dat <- read_csv("data/Claim+Analysis_July+22,+2025_05.24.csv")
 data <- dat[3:nrow(dat), ]  # Skip Qualtrics metadata and prompts
 rm(dat)
 
@@ -99,7 +99,7 @@ aimLink <- data |>
 
 ## Select the relevant fields
 paper_tbl <- doi_data |>
-  unnest(funder) |>
+  unnest(funder, keep_empty = TRUE) |>
   dplyr::select(
     doi,
     title,

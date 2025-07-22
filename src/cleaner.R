@@ -19,7 +19,11 @@ library(tidyverse)
 
 # ---- Read and trim raw data --------------------------------------------- #
 
-raw <- read.csv("data/Claim+Analysis_July+15,+2025_09.48.csv")
+# Automatically select the latest Claim+Analysis CSV file
+claim_files <- list.files("data", pattern = '^Claim\\+Analysis_.*\\.csv$', full.names = TRUE)
+latest_claim_file <- claim_files[which.max(file.info(claim_files)$mtime)]
+cat("Using input file:", latest_claim_file, "\n")
+raw <- read.csv(latest_claim_file)
 raw <- raw[3:nrow(raw), ]  # Skip Qualtrics metadata rows
 
 
@@ -27,7 +31,7 @@ raw <- raw[3:nrow(raw), ]  # Skip Qualtrics metadata rows
 
 incols <- names(raw)[18:length(names(raw))]
 widedata <- raw[, incols]
-rm(raw, incols)
+
 
 
 # ---- Pivot from wide to long format ------------------------------------- #
@@ -83,4 +87,4 @@ final
 # ---- Write cleaned output ------------------------------------------------ #
 
 write_csv(final, "out/tables/cleandata.csv")
-rm(longdata_clean)
+

@@ -5,7 +5,7 @@ account: ac1rv
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 15091320
-bundleId: 10634865
+bundleId: 10658096
 url: https://ac1rv.shinyapps.io/Explore/
 version: 1
 asMultiple: FALSE

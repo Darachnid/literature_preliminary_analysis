@@ -128,7 +128,7 @@ create_rain_cloud_plot <- function() {
   
   p <- layout(
     p,
-    title = "Papers by Aim through Time — Dev aims first, Assessment last",
+    title = NULL,
     xaxis = list(title = "Date Created"),
     yaxis = list(
       title    = "Aim of Paper",
@@ -163,11 +163,12 @@ create_aims_table <- function() {
   aims   <- read_csv("AIM_tbl.csv", show_col_types = FALSE)
   
   plotdata <- papers %>%
-    select(dateCreated, aimID = aim) %>%
+    select(doi, dateCreated, aimID = aim) %>%
     filter(!aimID %in% c("MIN", "Review")) %>%
     left_join(aims, by = "aimID") %>%
-    select(Aim = aimLongName, Date = dateCreated) %>%
-    drop_na(Aim)
+    select(DOI = doi, Aim = aimLongName, Date = dateCreated) %>%
+    drop_na(Aim) %>%
+    distinct(DOI, Aim, Date, .keep_all = TRUE)
   
   # 5-year bins
   min_year <- lubridate::year(min(plotdata$Date, na.rm = TRUE))
@@ -184,6 +185,7 @@ create_aims_table <- function() {
   
   # Count papers per aim × bin
   counts_long <- plotdata %>%
+    distinct(DOI, Aim, BinLabel) %>%
     count(Aim, BinLabel, name = "n") %>%
     complete(Aim, BinLabel, fill = list(n = 0))
   
@@ -422,7 +424,7 @@ create_rain_cloud_type_plot <- function() {
   
   p <- layout(
     p,
-    title = "Papers by Aim Type through Time — click a dot to open DOI",
+    title = NULL,
     xaxis = list(title = "Date Created"),
     yaxis = list(
       title    = "Aim Type",
@@ -580,7 +582,7 @@ create_justification_plot <- function() {
   
   p <- layout(
     p,
-    title = "<b>Justifications for Developing Cultivated Meat Through Time</b>",
+    title = NULL,
     xaxis = list(
       title = "<b>Date Created</b>",
       gridcolor = "gray85",
@@ -723,7 +725,7 @@ create_barrier_plot <- function() {
   # Make y-axis range tighter
   p <- layout(
     p,
-    title = "Barriers to Development by Time and Aim Type",
+    title = NULL,
     xaxis = list(title = "Date Created"),
     yaxis = list(
       title = "Barrier to Development",
@@ -917,7 +919,7 @@ create_adoption_barrier_plot <- function() {
   )
   p <- layout(
     p,
-    title = "Barriers to Adoption by Time and Aim Type",
+    title = NULL,
     xaxis = list(title = "Date Created"),
     yaxis = list(
       title = "Barrier to Adoption",
@@ -1012,11 +1014,12 @@ create_aim_type_table <- function() {
   aims   <- read_csv("AIM_tbl.csv", show_col_types = FALSE)
 
   plotdata <- papers %>%
-    select(dateCreated, aimID = aim) %>%
+    select(doi, dateCreated, aimID = aim) %>%
     filter(!aimID %in% c("MIN", "Review")) %>%
     left_join(aims, by = "aimID") %>%
-    select(aimType, Date = dateCreated) %>%
-    drop_na(aimType)
+    select(DOI = doi, aimType, Date = dateCreated) %>%
+    drop_na(aimType) %>%
+    distinct(DOI, aimType, Date, .keep_all = TRUE)
 
   # 5-year bins
   min_year <- lubridate::year(min(plotdata$Date, na.rm = TRUE))
@@ -1032,6 +1035,7 @@ create_aim_type_table <- function() {
 
   # Count papers per aimType × bin
   counts_long <- plotdata %>%
+    distinct(DOI, aimType, BinLabel) %>%
     count(aimType, BinLabel, name = "n") %>%
     complete(aimType, BinLabel, fill = list(n = 0))
 
@@ -1157,7 +1161,14 @@ ui <- page_navbar(
   nav_panel("Papers by Aim",
     navs_tab_card(
       nav("Plot View",
-        plot_card_ui("rain", title = "Papers Aims through Time", n = length(unique(read_csv("paper_tbl.csv", show_col_types = FALSE)$doi)))
+        plot_card_ui(
+          "rain",
+          title = "Papers Aims through Time",
+          n = length(unique(read_csv("paper_tbl.csv", show_col_types = FALSE) %>%
+                          filter(!aim %in% c("MIN", "Review")) %>%
+                          drop_na(aim) %>%
+                          pull(doi)))
+        )
       ),
       nav("Table View",
         card(
@@ -1171,7 +1182,18 @@ ui <- page_navbar(
   nav_panel("Papers by Aim Type",
     navs_tab_card(
       nav("Plot View",
-        plot_card_ui("rain_type", NULL)
+        plot_card_ui(
+          "rain_type",
+          title = "Papers by Aim Type through Time",
+          n = length(unique(
+            read_csv("paper_tbl.csv", show_col_types = FALSE) %>%
+              filter(!aim %in% c("MIN", "Review")) %>%
+              left_join(read_csv("AIM_tbl.csv", show_col_types = FALSE),
+                        by = c("aim" = "aimID")) %>%
+              drop_na(aimType) %>%
+              pull(doi)
+          ))
+        )
       ),
       nav("Table View",
         card(
@@ -1182,14 +1204,39 @@ ui <- page_navbar(
       )
     )
   ),
-  nav_panel("Papers by Justification", plot_card_ui("justification", NULL)),
+  nav_panel("Papers by Justification",
+    plot_card_ui(
+      "justification",
+      title = "Opportunity Justifications by Aim",
+      n = length(unique(
+        read_csv("paper_theme_tbl.csv", show_col_types = FALSE) %>%
+          filter(themeID %in% c("Humans", "Livestock", "the Environment")) %>%
+          pull(doi)
+      ))
+    )
+  ),
   nav_panel("Barriers to Development", 
     navs_tab_card(
       nav("Plot View",
-        card_body(
-          uiOutput("barrier_caption"),
-          plotlyOutput("barrier_plot", height = "600px")
-        )
+        {
+          n_dev_barrier <- length(unique(
+            read_csv("paper_theme_tbl.csv", show_col_types = FALSE) %>%
+              filter(themeID %in% read_csv("developmentBarrier_tbl.csv", show_col_types = FALSE)$developmentBarrierID) %>%
+              pull(doi)
+          ))
+          card(
+            card_header(
+              tags$span(
+                style = "font-size: 0.95em; color: #444; background: #f7f7f7; border-radius: 8px; padding: 2px 10px; margin: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 0;",
+                tags$span("Barriers to Development through Time", style = "font-weight: 600; margin-bottom: 0;"),
+                tags$span(paste0("Papers included in plot: n = ", n_dev_barrier), style = "font-size: 0.85em; color: #888; margin-top: 0;")
+              )
+            ),
+            card_body(
+              plotlyOutput("barrier_plot", height = "600px")
+            )
+          )
+        }
       ),
       nav("Table View",
         card(
@@ -1203,10 +1250,25 @@ ui <- page_navbar(
   nav_panel("Barriers to Adoption", 
     navs_tab_card(
       nav("Plot View",
-        card_body(
-          uiOutput("adoption_barrier_caption"),
-          plotlyOutput("adoption_barrier_plot", height = "600px")
-        )
+        {
+          n_adopt_barrier <- length(unique(
+            read_csv("paper_theme_tbl.csv", show_col_types = FALSE) %>%
+              filter(themeID %in% read_csv("adoptionBarrier_tbl.csv", show_col_types = FALSE)$adoptionBarrierID) %>%
+              pull(doi)
+          ))
+          card(
+            card_header(
+              tags$span(
+                style = "font-size: 0.95em; color: #444; background: #f7f7f7; border-radius: 8px; padding: 2px 10px; margin: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 0;",
+                tags$span("Barriers to Adoption through Time", style = "font-weight: 600; margin-bottom: 0;"),
+                tags$span(paste0("Papers included in plot: n = ", n_adopt_barrier), style = "font-size: 0.85em; color: #888; margin-top: 0;")
+              )
+            ),
+            card_body(
+              plotlyOutput("adoption_barrier_plot", height = "600px")
+            )
+          )
+        }
       ),
       nav("Table View",
         card(
@@ -1256,17 +1318,11 @@ server <- function(input, output, session) {
 
   # Barriers to Development
   output$barrier_plot <- renderPlotly({ create_barrier_plot() })
-  output$barrier_caption <- renderUI({
-    HTML("<b>Each point shows a paper-barrier association. Orange = Development aim, Black = Assessment aim. Y axis is the barrier to development, X is publication date.")
-  })
   output$barrier_table <- renderReactable({ create_barrier_table() })
 
   # Barriers to Adoption
   output$adoption_barrier_plot <- renderPlotly({ create_adoption_barrier_plot() })
   output$adoption_barrier_table <- renderReactable({ create_adoption_barrier_table() })
-  output$adoption_barrier_caption <- renderUI({
-    HTML("<b>Each point shows a paper-barrier association for adoption. Orange = Development aim, Black = Assessment aim. Y axis is the barrier to adoption, X is publication date.")
-  })
 
   # Add a table for Papers by Aim Type
   output$aims_table_table <- renderReactable({ create_aims_table() })

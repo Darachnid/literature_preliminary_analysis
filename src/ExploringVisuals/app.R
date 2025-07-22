@@ -1,0 +1,821 @@
+# Fixed Shiny app for Literature Analysis Visualizations
+# This app displays plots and tables created by the standalone scripts
+
+## ---- packages ----
+library(shiny)
+library(bslib)      # Bootstrap 5 theming helpers
+library(plotly)     # interactive charts
+library(reactable)  # interactive tables
+library(ggplot2)    # for static plots
+library(dplyr)      # data manipulation
+library(readr)      # reading CSV files
+library(kableExtra) # for styled tables
+library(htmltools)  # for HTML widgets
+library(here)      # for robust file paths
+library(tidyr)     # for drop_na and other tidyr functions
+library(htmlwidgets) # for onRender used with plotly
+
+## ---- create wrapper functions for each visualization ----
+
+# Rain Cloud Plot wrapper
+create_rain_cloud_plot <- function() {
+  # Load data
+  papers <- read_csv("paper_tbl.csv", show_col_types = FALSE)
+  aims   <- read_csv("AIM_tbl.csv", show_col_types = FALSE)
+  
+  plotdata <- papers %>%
+    select(doi, dateCreated, aimID = aim) %>%
+    filter(!aimID %in% c("Cell Differentiation", "Religion", "MIN", "Review")) %>%
+    left_join(aims, by = "aimID") %>%
+    select(aimType, Aim = aimLongName, DOI = doi, Date = dateCreated) %>%
+    distinct() %>%
+    drop_na(aimType)
+  
+  # Count & set factor levels
+  aim_counts <- plotdata %>%
+    count(aimType, Aim, name = "n")
+  
+  aim_levels <- aim_counts %>%
+    arrange(factor(aimType, levels = c("Development", "Assessment")),
+            desc(n)) %>%
+    pull(Aim)
+  
+  plotdata$Aim   <- factor(plotdata$Aim, levels = aim_levels)
+  plotdata$y_base <- as.numeric(plotdata$Aim)
+  
+  # 45-day conditional jitter
+  set.seed(123)
+  plotdata <- plotdata %>%
+    mutate(date_bin = as.Date(cut(Date, breaks = "45 days"))) %>%
+    group_by(Aim, date_bin) %>%
+    mutate(
+      n_dup  = n(),
+      y_plot = y_base + ifelse(n_dup > 1, runif(n(), -0.20, 0.20), 0)
+    ) %>%
+    ungroup()
+  
+  plotdata$color <- ifelse(plotdata$aimType == "Development", "orange", "black")
+  plotdata$url   <- paste0("https://doi.org/", plotdata$DOI)
+  
+  # Cloud width (√-scaled)
+  max_sqrt <- sqrt(max(aim_counts$n))
+  aim_counts <- aim_counts %>%
+    mutate(rel_width = 0.15 + 0.45 * sqrt(n) / max_sqrt)
+  
+  # Build plotly
+  p <- plot_ly()
+  
+  for (i in seq_along(aim_levels)) {
+    this_aim <- aim_levels[i]
+    w        <- aim_counts$rel_width[aim_counts$Aim == this_aim]
+    
+    p <- add_trace(
+      p,
+      data        = filter(plotdata, Aim == this_aim),
+      type        = "violin",
+      orientation = "h",
+      x           = ~Date,
+      y           = i,
+      width       = w,
+      spanmode    = "hard",
+      points      = FALSE,
+      line        = list(width = 0),
+      fillcolor   = "rgba(160,160,160,0.25)",
+      hoverinfo   = "skip",
+      showlegend  = FALSE
+    )
+  }
+  
+  p <- add_trace(
+    p,
+    data  = plotdata,
+    x     = ~Date,
+    y     = ~y_plot,
+    type  = "scatter",
+    mode  = "markers",
+    marker = list(size = 4, color = ~color),
+    text = ~paste0(
+      "<b>Type:</b> ",  aimType,
+      "<br><b>Aim:</b> ", Aim,
+      "<br><b>Date:</b> ", Date,
+      "<br><b>DOI:</b> ", DOI
+    ),
+    customdata = ~url,
+    hoverinfo  = "text",
+    showlegend = FALSE
+  )
+  
+  p <- layout(
+    p,
+    title = "Papers by Aim through Time — Dev aims first, Assessment last",
+    xaxis = list(title = "Date Created"),
+    yaxis = list(
+      title    = "Aim of Paper",
+      tickmode = "array",
+      tickvals = seq_along(aim_levels),
+      ticktext = aim_levels,
+      autorange = "reversed"
+    ),
+    height = 600
+  )
+  
+  # Open DOI on click
+  p <- onRender(
+    p,
+    "
+    function(el, x) {
+      el.on('plotly_click', function(d) {
+        var url = d.points[0].customdata;
+        if(url) { window.open(url); }
+      });
+    }
+    "
+  )
+  
+  return(p)
+}
+
+# Aims Table wrapper
+create_aims_table <- function() {
+  # Load data
+  papers <- read_csv("paper_tbl.csv", show_col_types = FALSE)
+  aims   <- read_csv("AIM_tbl.csv", show_col_types = FALSE)
+  
+  plotdata <- papers %>%
+    select(dateCreated, aimID = aim) %>%
+    filter(!aimID %in% c("Cell Differentiation", "Religion", "MIN", "Review")) %>%
+    left_join(aims, by = "aimID") %>%
+    select(Aim = aimLongName, Date = dateCreated) %>%
+    drop_na(Aim)
+  
+  # 5-year bins
+  min_year <- lubridate::year(min(plotdata$Date, na.rm = TRUE))
+  max_year <- lubridate::year(max(plotdata$Date, na.rm = TRUE))
+  
+  bin_starts <- seq(floor(min_year / 5) * 5, ceiling(max_year / 5) * 5, by = 5)
+  bin_labels <- sprintf("%d–%d", bin_starts, bin_starts + 4)
+  
+  plotdata <- plotdata %>%
+    mutate(
+      BinStart = bin_starts[findInterval(lubridate::year(Date), bin_starts, left.open = FALSE)],
+      BinLabel = factor(sprintf("%d–%d", BinStart, BinStart + 4), levels = bin_labels)
+    )
+  
+  # Count papers per aim × bin
+  counts_long <- plotdata %>%
+    count(Aim, BinLabel, name = "n") %>%
+    complete(Aim, BinLabel, fill = list(n = 0))
+  
+  # Order aims by total volume
+  aim_levels <- counts_long %>%
+    group_by(Aim) %>%
+    summarise(total = sum(n), .groups = "drop") %>%
+    arrange(desc(total)) %>%
+    pull(Aim)
+  
+  counts_long$Aim <- factor(counts_long$Aim, levels = aim_levels)
+  
+  counts_wide <- counts_long %>%
+    pivot_wider(names_from = BinLabel, values_from = n, values_fill = 0) %>%
+    arrange(match(Aim, aim_levels))
+  
+  # Drop bin columns with all zeros
+  non_empty_cols <- counts_wide %>%
+    select(-Aim) %>%
+    summarise(across(everything(), sum)) %>%
+    select(where(~ .x > 0)) %>%
+    names()
+  
+  counts_wide <- counts_wide %>%
+    select(Aim, all_of(non_empty_cols)) %>%
+    mutate(Total = rowSums(across(where(is.numeric))))
+  
+  # Create reactable
+  num_cols <- setdiff(names(counts_wide), "Aim")
+  
+  reactable(
+    counts_wide,
+    defaultSorted     = "Total",
+    defaultSortOrder  = "desc",
+    searchable        = TRUE,
+    filterable        = TRUE,
+    striped           = TRUE,
+    highlight         = TRUE,
+    defaultPageSize   = 20,
+    paginationType    = "jump",
+    theme = reactableTheme(
+      stripedColor   = "#f7f7f7",
+      highlightColor = "#ffe7ad",
+      style = list(fontFamily = "system-ui, sans-serif", fontSize = 14)
+    ),
+    columns = c(
+      list(Aim = colDef(name = "Aim", sticky = "left", minWidth = 220)),
+      setNames(
+        lapply(num_cols, function(col) {
+          colDef(align = "right",
+                 format = colFormat(separators = TRUE, digits = 0),
+                 minWidth = 70)
+        }),
+        num_cols
+      )
+    ),
+    wrap = FALSE
+  )
+}
+
+# Theme Bar Plot wrapper
+create_theme_bar_plot <- function() {
+  # Load data
+  df <- read_csv("theme_counts.csv") |>
+    mutate(
+      theme = as.character(theme),
+      BLOC = as.factor(BLOC)
+    )
+  
+  theme_order <- df |>
+    arrange(desc(papers)) |>
+    pull(theme)
+  
+  # Create ggplot
+  p <- ggplot(df, aes(x = factor(theme, levels = rev(theme_order)), 
+               y = papers, fill = BLOC)) +
+    geom_bar(stat = "identity") +
+    coord_flip() +
+    scale_fill_manual(
+      values = c(
+        "Barrier" = "red",
+        "Opportunity" = "green4",
+        "Limitation" = "goldenrod2",
+        "Consequence" = "purple"
+      )
+    ) +
+    theme_minimal(base_size = 13) +
+    theme(
+      axis.text.y = element_text(size = 10),
+      panel.grid.major.y = element_blank()
+    ) +
+    labs(
+      x = "Frame",
+      y = "Number of Papers using the Frame",
+      title = "Prevalence of Frames",
+      fill = "BLOC Frame"
+    )
+  
+  # Convert to plotly for interactivity
+  ggplotly(p, tooltip = c("x", "y", "fill"))
+}
+
+# Theme Counts Table wrapper
+create_theme_counts_table <- function() {
+  # Load data
+  theme_count <- read_csv("theme_counts.csv")
+  
+  # Define color palette
+  bloc_colors <- c(
+    "Barrier"     = "rgba(255, 0, 0, 0.3)",
+    "Opportunity" = "rgba(0, 128, 0, 0.3)",
+    "Limitation"  = "rgba(255, 255, 0, 0.3)",
+    "Consequence" = "rgba(148, 0, 211, 0.3)"
+  )
+  
+  # Create reactable with conditional formatting
+  reactable(
+    theme_count,
+    defaultSorted = "papers",
+    defaultSortOrder = "desc",
+    searchable = TRUE,
+    filterable = TRUE,
+    striped = TRUE,
+    highlight = TRUE,
+    theme = reactableTheme(
+      stripedColor = "#f7f7f7",
+      highlightColor = "#ffe7ad"
+    ),
+    columns = list(
+      BLOC = colDef(
+        name = "BLOC Category",
+        cell = function(value) {
+          div(
+            style = paste0(
+              "background-color: ", bloc_colors[value], "; ",
+              "padding: 4px 8px; border-radius: 4px; font-weight: bold;"
+            ),
+            value
+          )
+        }
+      ),
+      theme = colDef(name = "Theme"),
+      papers = colDef(
+        name = "Number of Papers",
+        format = colFormat(separators = TRUE, digits = 0)
+      )
+    )
+  )
+}
+
+# Rain Cloud Type Plot wrapper
+create_rain_cloud_type_plot <- function() {
+  # Load data
+  papers <- read_csv("paper_tbl.csv", show_col_types = FALSE)
+  aims   <- read_csv("AIM_tbl.csv", show_col_types = FALSE)
+  
+  plotdata <- papers %>%
+    select(doi, dateCreated, title,
+           publisher = publisherID,
+           journal   = journalID,
+           aimID     = aim) %>%
+    filter(!aimID %in% c("Cell Differentiation", "Religion", "MIN", "Review")) %>%
+    left_join(aims, by = "aimID") %>%
+    select(aimType, doi, dateCreated, title, publisher, journal) %>%
+    distinct() %>%
+    drop_na(aimType)
+  
+  plotdata$aimType <- factor(plotdata$aimType,
+                             levels = c("Development", "Assessment"))
+  plotdata$y_base  <- as.numeric(plotdata$aimType)
+  
+  # 14-day conditional jitter
+  set.seed(123)
+  plotdata <- plotdata %>%
+    mutate(date_bin = as.Date(cut(dateCreated, breaks = "14 days"))) %>%
+    group_by(aimType, date_bin) %>%
+    mutate(
+      n_dup  = n(),
+      y_plot = y_base + ifelse(n_dup > 1, runif(n(), -0.20, 0.20), 0)
+    ) %>%
+    ungroup()
+  
+  plotdata$color <- ifelse(plotdata$aimType == "Development", "orange", "black")
+  plotdata$url   <- paste0("https://doi.org/", plotdata$doi)
+  
+  # Cloud width per type (√-scaled)
+  type_counts <- plotdata %>% count(aimType, name = "n")
+  max_sqrt    <- sqrt(max(type_counts$n))
+  type_counts <- type_counts %>%
+    mutate(rel_width = 0.30 + 0.50 * sqrt(n) / max_sqrt)
+  
+  # Build plotly
+  p <- plot_ly()
+  
+  for (i in seq_along(levels(plotdata$aimType))) {
+    this_type <- levels(plotdata$aimType)[i]
+    w         <- type_counts$rel_width[type_counts$aimType == this_type]
+    
+    p <- add_trace(
+      p,
+      data        = filter(plotdata, aimType == this_type),
+      type        = "violin",
+      orientation = "h",
+      x           = ~dateCreated,
+      y           = i,
+      width       = w,
+      spanmode    = "hard",
+      points      = FALSE,
+      line        = list(width = 0),
+      fillcolor   = "rgba(160,160,160,0.25)",
+      hoverinfo   = "skip",
+      showlegend  = FALSE
+    )
+  }
+  
+  p <- add_trace(
+    p,
+    data  = plotdata,
+    x     = ~dateCreated,
+    y     = ~y_plot,
+    type  = "scatter",
+    mode  = "markers",
+    marker = list(size = 4, color = ~color),
+    text = ~paste0(
+      "<b>Type:</b> ",  aimType,
+      "<br><b>Title:</b> ", title,
+      "<br><b>Publisher:</b> ", publisher,
+      "<br><b>Journal:</b> ",  journal,
+      "<br><b>Date:</b> ",     dateCreated,
+      "<br><b>DOI:</b> ",      doi
+    ),
+    customdata = ~url,
+    hoverinfo  = "text",
+    showlegend = FALSE
+  )
+  
+  p <- layout(
+    p,
+    title = "Papers by Aim Type through Time — click a dot to open DOI",
+    xaxis = list(title = "Date Created"),
+    yaxis = list(
+      title    = "Aim Type",
+      tickmode = "array",
+      tickvals = c(1, 2),
+      ticktext = levels(plotdata$aimType),
+      autorange = "reversed"
+    ),
+    height = 600
+  )
+  
+  # JS callback to open DOI on click
+  p <- onRender(
+    p,
+    "
+    function(el, x) {
+      el.on('plotly_click', function(d) {
+        var url = d.points[0].customdata;
+        if(url) { window.open(url); }
+      });
+    }
+    "
+  )
+  
+  return(p)
+}
+
+# Justification Plot wrapper
+create_justification_plot <- function() {
+  # Load data
+  papers <- read_csv("paper_tbl.csv", show_col_types = FALSE)
+  aims   <- read_csv("AIM_tbl.csv", show_col_types = FALSE)
+  themes <- read_csv("paper_theme_tbl.csv", show_col_types = FALSE)
+  
+  # Preferred legend labels
+  display_name <- c(
+    "Humans"          = "Human Wellbeing",
+    "Livestock"       = "Livestock Wellbeing",
+    "the Environment" = "Environmental Wellbeing"
+  )
+  
+  # Filter to three themes & duplicate rows
+  theme_keep <- c("Humans", "Livestock", "the Environment")
+  
+  themes_sub <- themes %>% 
+    filter(themeID %in% theme_keep) %>% 
+    distinct(doi, themeID)
+  
+  plotdata <- papers %>% 
+    select(DOI = doi, Date = dateCreated,
+           aimID = aim, title, publisher = publisherID, journal = journalID) %>% 
+    left_join(aims,  by = "aimID") %>% 
+    left_join(themes_sub, by = c("DOI" = "doi")) %>%
+    filter(!is.na(themeID)) %>%
+    distinct() %>% 
+    transmute(
+      Aim      = aimLongName,
+      aimType,
+      Theme    = themeID,
+      DOI, Date, title, publisher, journal
+    )
+  
+  # Order aims: Dev-first, high->low within blocks
+  aim_counts <- plotdata %>% count(aimType, Aim, name = "n")
+  
+  aim_levels <- aim_counts %>% 
+    arrange(factor(aimType, levels = c("Development", "Assessment")),
+            desc(n)) %>% 
+    pull(Aim)
+  
+  plotdata$Aim    <- factor(plotdata$Aim, levels = aim_levels)
+  plotdata$y_base <- as.numeric(plotdata$Aim)
+  
+  # Fast random offsets – never overlap
+  stack_gap <- 0.20
+  jit_days  <- 50
+  set.seed(123)
+  
+  plotdata <- plotdata %>%
+    mutate(date_bin = as.Date(cut(Date, breaks = "45 days"))) %>%
+    group_by(Aim, date_bin, DOI) %>%
+    arrange(Theme) %>%
+    mutate(
+      offset = sample(
+        ((row_number()) - (n() + 1) / 2) * stack_gap
+      ),
+      y_plot = y_base + offset,
+      x_plot = Date + runif(n(), -jit_days, jit_days)
+    ) %>%
+    ungroup()
+  
+  # Width-scaled "clouds"
+  max_sqrt <- sqrt(max(aim_counts$n))
+  aim_counts <- aim_counts %>% 
+    mutate(rel_width = 0.15 + 0.45 * sqrt(n) / max_sqrt)
+  
+  # Palette & URL
+  col_pal <- c("Humans" = "magenta",
+               "Livestock" = "cyan",
+               "the Environment" = 'yellow')
+  
+  plotdata$color <- col_pal[plotdata$Theme]
+  plotdata$url   <- paste0("https://doi.org/", plotdata$DOI)
+  
+  # Build plotly
+  p <- plot_ly()
+  
+  # Clouds (violins) per Aim
+  for (i in seq_along(aim_levels)) {
+    this_aim <- aim_levels[i]
+    w        <- aim_counts$rel_width[aim_counts$Aim == this_aim]
+    
+    p <- add_trace(
+      p,
+      data        = filter(plotdata, Aim == this_aim),
+      type        = "violin",
+      orientation = "h",
+      x           = ~Date,
+      y           = i,
+      width       = w,
+      spanmode    = "hard",
+      points      = FALSE,
+      line        = list(width = 0),
+      fillcolor   = "rgba(160,160,160,0.25)",
+      hoverinfo   = "skip",
+      showlegend  = FALSE
+    )
+  }
+  
+  # Dots – one scatter trace per Theme
+  for (t in theme_keep) {
+    p <- add_trace(
+      p,
+      data        = filter(plotdata, Theme == t),
+      x           = ~x_plot,
+      y           = ~y_plot,
+      type        = "scatter",
+      mode        = "markers", 
+      opacity     = 0.45,
+      marker      = list(size = 10, color = col_pal[t]),
+      name        = display_name[t],
+      legendgroup = display_name[t],
+      showlegend  = TRUE,
+      customdata  = ~url,
+      hoverinfo   = "text",
+      text = ~paste0(
+        "<b>Theme:</b> ", display_name[Theme],
+        "<br><b>Type:</b> ",  aimType,
+        "<br><b>Aim:</b> ",   Aim,
+        "<br><b>Date:</b> ",  Date,
+        "<br><b>DOI:</b> ",   DOI
+      )
+    )
+  }
+  
+  p <- layout(
+    p,
+    title = "<b>Justifications for Developing Cultivated Meat Through Time</b>",
+    xaxis = list(
+      title = "<b>Date Created</b>",
+      gridcolor = "gray85",
+      zerolinecolor = "gray85",
+      linecolor = "black",
+      tickfont  = list(color = "black"),
+      titlefont = list(color = "black")
+    ),
+    yaxis = list(
+      title = "<b>Aim of Paper</b>",
+      tickmode = "array",
+      tickvals = seq_along(aim_levels),
+      ticktext = aim_levels,
+      autorange = "reversed",
+      gridcolor = "gray85",
+      zerolinecolor = "gray85",
+      linecolor = "black",
+      tickfont  = list(color = "black"),
+      titlefont = list(color = "black"),
+      scaleanchor = "x",
+      scaleratio = 1
+    ),
+    legend = list(
+      title      = list(text = "<b>Justification for<br>Developing CM</b>",
+                        font = list(color = "black")),
+      traceorder = "normal",
+      font       = list(color = "black")
+    ),
+    plot_bgcolor  = "white",
+    paper_bgcolor = "white",
+    font          = list(color = "black"),
+    height = 600
+  )
+  
+  return(p)
+}
+
+# Barrier Plot wrapper
+create_barrier_plot <- function() {
+  # Load data
+  papers <- read_csv("paper_tbl.csv", show_col_types = FALSE)
+  aims   <- read_csv("AIM_tbl.csv", show_col_types = FALSE)
+  pt     <- read_csv("paper_theme_tbl.csv", show_col_types = FALSE)
+  barriers <- read_csv("developmentBarrier_tbl.csv", show_col_types = FALSE)
+
+  # Only keep development barriers
+  dev_barriers <- barriers$developmentBarrierID
+  pt_dev <- pt %>% filter(themeID %in% dev_barriers)
+
+  # Join all info
+  plotdata <- pt_dev %>%
+    left_join(papers, by = "doi") %>%
+    left_join(aims, by = c("aim" = "aimID")) %>%
+    left_join(barriers, by = c("themeID" = "developmentBarrierID")) %>%
+    select(doi, dateCreated, aimType, barrier = themeID, barrierDesc = developmentBarrierDescription) %>%
+    drop_na(dateCreated, barrier, aimType)
+
+  # Factor for y axis
+  barrier_levels <- barriers$developmentBarrierID
+  plotdata$barrier <- factor(plotdata$barrier, levels = rev(barrier_levels))
+  plotdata$y_base <- as.numeric(plotdata$barrier)
+  plotdata$color <- ifelse(plotdata$aimType == "Development", "orange", "black")
+
+  # Jitter
+  set.seed(123)
+  plotdata <- plotdata %>%
+    mutate(date_bin = as.Date(cut(dateCreated, breaks = "30 days"))) %>%
+    group_by(barrier, date_bin) %>%
+    mutate(
+      n_dup  = n(),
+      y_plot = y_base + ifelse(n_dup > 1, runif(n(), -0.20, 0.20), 0)
+    ) %>%
+    ungroup()
+
+  # Plot
+  p <- plot_ly(
+    data = plotdata,
+    x = ~dateCreated,
+    y = ~y_plot,
+    type = "scatter",
+    mode = "markers",
+    marker = list(size = 6, color = ~color),
+    text = ~paste0(
+      "<b>Barrier:</b> ", barrier,
+      "<br><b>Date:</b> ", dateCreated,
+      "<br><b>Aim Type:</b> ", aimType
+    ),
+    hoverinfo = "text",
+    showlegend = FALSE
+  )
+  p <- layout(
+    p,
+    title = "Barriers to Development by Time and Aim Type",
+    xaxis = list(title = "Date Created"),
+    yaxis = list(
+      title = "Barrier to Development",
+      tickmode = "array",
+      tickvals = seq_along(barrier_levels),
+      ticktext = rev(barrier_levels),
+      autorange = "reversed"
+    ),
+    height = 600
+  )
+  return(p)
+}
+
+# Barrier Table wrapper
+create_barrier_table <- function() {
+  pt     <- read_csv("paper_theme_tbl.csv", show_col_types = FALSE)
+  barriers <- read_csv("developmentBarrier_tbl.csv", show_col_types = FALSE)
+
+  # Only keep development barriers
+  dev_barriers <- barriers$developmentBarrierID
+  pt_dev <- pt %>% filter(themeID %in% dev_barriers)
+
+  # Count per barrier
+  counts <- pt_dev %>% count(themeID, name = "papers")
+  table <- barriers %>%
+    left_join(counts, by = c("developmentBarrierID" = "themeID")) %>%
+    mutate(papers = replace_na(papers, 0)) %>%
+    select(Barrier = developmentBarrierID, Definition = developmentBarrierDescription, Papers = papers)
+
+  reactable(
+    table,
+    defaultSorted = "Papers",
+    defaultSortOrder = "desc",
+    searchable = TRUE,
+    filterable = TRUE,
+    striped = TRUE,
+    highlight = TRUE,
+    defaultPageSize = 12,
+    theme = reactableTheme(
+      stripedColor = "#f7f7f7",
+      highlightColor = "#ffe7ad",
+      style = list(fontFamily = "system-ui, sans-serif", fontSize = 14)
+    ),
+    columns = list(
+      Barrier = colDef(name = "Barrier", sticky = "left", minWidth = 180),
+      Definition = colDef(name = "Definition", minWidth = 300),
+      Papers = colDef(name = "Number of Papers", align = "right", format = colFormat(separators = TRUE, digits = 0), minWidth = 70)
+    ),
+    wrap = FALSE
+  )
+}
+
+## ---- reusable plot-card module ----
+plot_card_ui <- function(id, title) {
+  ns <- NS(id)
+  tagList(
+    card(
+      card_header(
+        h3(title),
+        actionButton(ns("help"), "?", class = "btn-sm btn-secondary", style = "float:right")
+      ),
+      card_body(
+        uiOutput(ns("caption")),
+        uiOutput(ns("plot"))
+      )
+    )
+  )
+}
+
+plot_card_server <- function(id, plot_fun, caption_md, help_md, is_reactable = FALSE) {
+  moduleServer(id, function(input, output, session) {
+    # Render the visual
+    output$plot <- renderUI({
+      if (is_reactable) {
+        renderReactable({ plot_fun() })
+      } else {
+        renderPlotly({ plot_fun() })
+      }
+    })
+    
+    # Caption beneath the visual
+    output$caption <- renderUI({
+      markdown::markdownToHTML(text = caption_md, fragment.only = TRUE) |> HTML()
+    })
+    
+    # Help modal
+    observeEvent(input$help, {
+      showModal(
+        modalDialog(
+          title = "How to interact",
+          markdown::markdownToHTML(text = help_md, fragment.only = TRUE) |> HTML(),
+          easyClose = TRUE, footer = NULL, size = "l"
+        )
+      )
+    })
+  })
+}
+
+## ---- UI ----
+ui <- page_navbar(
+  title = "Literature Analysis Explorer",
+  theme = bs_theme(version = 5, bootswatch = "minty") |>
+    bs_add_variables(primary = "#006d77"),
+  
+  nav_panel("Aims Table", plot_card_ui("aims_table", "Aims Table")),
+  nav_panel("Papers by Aim", plot_card_ui("rain", "Papers by Aim")),
+  nav_panel("Papers by Aim Type", plot_card_ui("rain_type", "Papers by Aim Type")),
+  nav_panel("Papers by Justification", plot_card_ui("justification", "Papers by Justification")),
+  nav_panel("Barriers to Development", 
+    card(
+      card_header(h3("Barriers to Development")),
+      card_body(
+        uiOutput("barrier_caption"),
+        plotlyOutput("barrier_plot", height = "600px"),
+        h4("Barrier Table"),
+        reactableOutput("barrier_table")
+      )
+    )
+  )
+)
+
+## ---- server ----
+server <- function(input, output, session) {
+  # Aims Table
+  plot_card_server(
+    id = "aims_table",
+    plot_fun = create_aims_table,
+    caption_md = "From 2010 to 2014, only three research aims were represented, with philosophical assumptions being the most prevalent, followed by bioreactors and process design. Between 2015 and 2019, the field broadened, with consumer acceptance becoming the leading aim (11 articles), followed by education and outreach, philosophical assumptions, performance analysis, and media and nutrient sources (each with 4 articles). In the most recent period (2020–2024), scaffolding materials dominates with 114 papers, followed by consumer acceptance (78), media and nutrient sources (59), bioreactors and process design (47), and cell sources and maintenance (39). Notably, philosophical assumptions—once a leading category—has become the least represented, with just 4 papers.",
+    help_md = "You can search, filter, and sort the table using the controls above each column. Use the search box to find specific aims or time periods. Click column headers to sort.",
+    is_reactable = TRUE
+  )
+  
+  # Papers by Aim
+  plot_card_server(
+    id = "rain",
+    plot_fun = create_rain_cloud_plot,
+    caption_md = "Over time, assessment-type aims such as policy and regulation and stakeholder assessment remain sparsely represented, with the notable exception of consumer acceptance, which shows steady growth. In contrast, development-type aims—particularly scaffolding materials, media and nutrient sources, and bioreactors and process design—have seen relatively equal and substantial representation from 2022 to 2024. Cell sources and maintenance appears to be an emerging focus, as shown by the widening, right-angled shape of the violin plot, indicating a sharp increase in recent attention. A similar triangular expansion is visible for scaffolding materials, though the growth in cell sources appears even more accelerated. Meanwhile, aims with more block-like shapes, such as consumer acceptance, suggest steadier but slower growth. These visual cues point to a shifting research landscape, where development-type aims are accelerating more rapidly than assessment, raising questions about what is driving this trend.",
+    help_md = "Hover your mouse over the plot to make the icons appear in the top right. These let you download screenshots, pan, select points, adjust axes, and reset the view by clicking the house icon.",
+  )
+  
+  # Papers by Aim Type
+  plot_card_server(
+    id = "rain_type",
+    plot_fun = create_rain_cloud_type_plot,
+    caption_md = "From 2010 to 2014, only one paper was published, categorized under a development-type aim. Between 2014 and 2016, two assessment-type papers emerged, marking the entry of evaluative studies into the field. During 2016–2018, eight additional papers were published, six of which were assessment-type, indicating an early dominance of that category. From 2018 to 2020, two more development-type papers appeared, while assessment continued to grow with twelve more. In the 2020–2022 period, representation between assessment and development-type aims became nearly equal. By 2022–2024, development-type aims surpassed assessment, suggesting a shifting focus toward advancing technologies and production methods in cultivated meat research.",
+    help_md = "Hover your mouse over the plot to make the icons appear in the top right. These let you download screenshots, pan, select points, adjust axes, and reset the view by clicking the house icon.",
+  )
+  
+  # Papers by Justification
+  plot_card_server(
+    id = "justification",
+    plot_fun = create_justification_plot,
+    caption_md = "This plot shows the frequency of opportunity justifications—identified through BLOC analysis—as they relate to human well-being (magenta), livestock well-being (cyan), and environmental well-being (yellow). These justifications highlight problems in current food systems that cultivated meat is proposed to solve. All three types of well-being are mentioned across most research aims, with human well-being most frequently referenced, particularly in consumer acceptance papers. Livestock well-being appears slightly less often but still spans across aims, while environmental well-being is consistently represented. Overall, the plot suggests that across aims, justifications for cultivated meat tend to emphasize a broad array of potential benefits.",
+    help_md = "Hover your mouse over the plot to make the icons appear in the top right. These let you download screenshots, pan, select points, adjust axes, and reset the view by clicking the house icon. You can also click legend items to hide or show groups."
+  )
+
+  # Barriers to Development
+  output$barrier_plot <- renderPlotly({ create_barrier_plot() })
+  output$barrier_table <- renderReactable({ create_barrier_table() })
+  output$barrier_caption <- renderUI({
+    HTML("<b>Each point shows a paper-barrier association. Orange = Development aim, Black = Assessment aim. Y axis is the barrier to development, X is publication date. Table below shows barrier definitions and counts.")
+  })
+}
+
+## ---- app launcher ----
+shinyApp(ui, server)

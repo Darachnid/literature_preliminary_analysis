@@ -1,0 +1,12 @@
+name: Explore
+title: Explore
+username: ac1rv
+account: ac1rv
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 15091320
+bundleId: 10634865
+url: https://ac1rv.shinyapps.io/Explore/
+version: 1
+asMultiple: FALSE
+asStatic: FALSE

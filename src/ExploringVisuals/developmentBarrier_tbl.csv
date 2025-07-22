@@ -1,0 +1,13 @@
+developmentBarrierID,barrierTypeID,blocID,developmentBarrierDescription
+Cell Maintenance,Development,Barrier,Cell line longevity presents a barrier to scaled development of CM
+Media and Ingredients,Development,Barrier,Media or the ingredients added to it present a barrier to scaled development of CM
+Investments,Development,Barrier,Researchers or start-ups lacking ample funds present a barrier to scaled development of CM
+Energy Use is High,Development,Barrier,High energy usage or high carbon emmissions present a barrier to scaled development of CM
+Process and Bioreactors,Development,Barrier,Process inefficiencies or bioreactors present a barrier to scaled development of CM
+Poor Sensory Attribute,Development,Barrier,Attaining desirable sensory attributes presents a barrier to scaled development of CM
+Scaffolds,Development,Barrier,Scaffolding materials present a barrier to scaled development of CM
+non-Nutritious,Development,Barrier,Attaining desirable nutritional attributes presents a barrier to scaled development of CM
+Information is kept proprietary,Development,Barrier,Lack of information-sharing between researchers presents a barrier to scaled development of CM
+non-specified barrier to scale,Development,Barrier,Scale or technological problems present barriers to scaled development of CM
+other,Development,Barrier,A problem not listed presents a barrier to scaled development of CM
+Cell Sources and Differentiation,Development,Barrier,Optimizing or sourcing cell lines or cells ability to become a more specialized cell type present barriers to scaled development of CM

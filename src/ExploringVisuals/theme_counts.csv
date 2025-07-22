@@ -1,0 +1,60 @@
+BLOC,type,subtype,theme,papers
+Opportunity,NA,NA,the Environment,189
+Opportunity,NA,NA,Humans,187
+Opportunity,Humans,NA,Public Health,184
+Opportunity,Humans,Public Health,Increasing Food Security,147
+Opportunity,NA,NA,Livestock,131
+Barrier,Adoption,NA,Public Distrust,119
+Opportunity,the Environment,NA,Pollution,113
+Opportunity,the Environment,NA,Non-specified Env,107
+Opportunity,Humans,Public Health,Food Safety Improvements,90
+Opportunity,the Environment,NA,Land Use or Land Change,90
+Barrier,Development,NA,Media and Ingredients,84
+Opportunity,the Environment,NA,Excessive Fresh Water Use,77
+Barrier,Development,NA,Scaffolds,75
+Opportunity,Humans,NA,Economic - (includes energy efficiency),67
+Barrier,Development,NA,non-specified barrier to scale,67
+Barrier,Adoption,NA,Cost or Willingness to Pay,63
+Barrier,Development,NA,Process and Bioreactors,61
+Barrier,Adoption,Public Distrust,poor Sensory Attributes,59
+Barrier,Adoption,Public Distrust,Unnatural perceptions,58
+Barrier,Adoption,Public Distrust,Non-specified Distrust,54
+Barrier,Development,NA,Poor Sensory Attribute,51
+Opportunity,the Environment,NA,Climate Change Impacts,50
+Barrier,Adoption,Public Distrust,Health Concerns,46
+Barrier,Development,NA,Cell Sources and Differentiation,44
+Barrier,Adoption,Public Distrust,Safety Concerns,44
+Barrier,Adoption,Public Distrust,it being unfamiliar,43
+Opportunity,Humans,Public Health,Offering Better Nutrition,40
+Barrier,Adoption,NA,Regulations,36
+Barrier,Adoption,Public Distrust,The way it is Framed,35
+Barrier,Adoption,Public Distrust,Disgust reactions,31
+Opportunity,Humans,Public Health,Non-specified Health,27
+Opportunity,the Environment,NA,Biodiversity Impacts,26
+Barrier,Development,NA,Cell Maintenance,26
+Barrier,Development,NA,non-Nutritious,25
+Barrier,Development,NA,Energy Use is High,24
+Barrier,Adoption,Public Distrust,Neophobia,24
+Opportunity,Humans,NA,Location Dependency,16
+Opportunity,Humans,Public Health,Chronic Disease Preevention,15
+Barrier,Development,NA,Investments,14
+Consequence,NA,NA,Job loss,14
+Barrier,Adoption,Public Distrust,Religious beliefs,14
+Consequence,NA,NA,Health Issues,11
+Opportunity,the Environment,NA,Other,11
+Opportunity,the Environment,NA,Wasteful production methods,10
+Limitation,NA,NA,Attributes of Consumption Culture,9
+Barrier,Adoption,Public Distrust,Withheld Information concerns,9
+Consequence,NA,NA,Overconsumption Continues,8
+Barrier,Adoption,Public Distrust,False Information concerns,7
+Barrier,Adoption,Public Distrust,other distrust,6
+Consequence,NA,NA,"""Ethical"" Problems",5
+Consequence,NA,NA,Power Inequities,5
+Consequence,NA,NA,Disconnecting from Food Sources,4
+Barrier,Development,NA,Information is kept proprietary,4
+Limitation,NA,NA,It is disconnected from Nature,4
+Barrier,Development,NA,other Dev,4
+Limitation,NA,NA,Attributes of Production Culture,3
+Consequence,NA,NA,Overconsumption Continues B,3
+Consequence,NA,NA,More Waste,2
+Consequence,NA,NA,other consequence,1

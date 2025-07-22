@@ -745,23 +745,21 @@ create_barrier_plot <- function() {
   return(p)
 }
 
-# Barrier Table wrapper (with assessment, development, and total counts)
+# Barrier Table wrapper (percent columns)
 create_barrier_table <- function() {
   pt     <- read_csv("paper_theme_tbl.csv", show_col_types = FALSE)
   papers <- read_csv("paper_tbl.csv", show_col_types = FALSE)
   aims   <- read_csv("AIM_tbl.csv", show_col_types = FALSE)
   barriers <- read_csv("developmentBarrier_tbl.csv", show_col_types = FALSE)
 
-  # Only keep development barriers
   dev_barriers <- barriers$developmentBarrierID
   pt_dev <- pt %>% filter(themeID %in% dev_barriers)
 
-  # Join to get aimType
   joined <- pt_dev %>%
     left_join(papers, by = "doi") %>%
     left_join(aims, by = c("aim" = "aimID")) %>%
     select(doi, barrier = themeID, aimType)
-    
+
   # Count by barrier and aimType
   counts <- joined %>%
     filter(!is.na(aimType)) %>%
@@ -769,20 +767,28 @@ create_barrier_table <- function() {
     count(barrier, aimType, name = "n") %>%
     tidyr::pivot_wider(names_from = aimType, values_from = n, values_fill = 0)
 
-  # Add total
-  counts <- counts %>% mutate(Total = rowSums(across(where(is.numeric))))
+  # Get total number of papers for each aim type
+  total_dev <- papers %>% left_join(aims, by = c("aim" = "aimID")) %>% filter(aimType == "Development") %>% distinct(doi) %>% nrow()
+  total_assess <- papers %>% left_join(aims, by = c("aim" = "aimID")) %>% filter(aimType == "Assessment") %>% distinct(doi) %>% nrow()
 
-  # Join with definitions
+  # Calculate percent columns and append (n = N)
+  total_all <- papers %>% distinct(doi) %>% nrow()
+  counts <- counts %>% mutate(
+    `Percent of Development Papers` = ifelse(Development > 0, paste0(round(100 * Development / total_dev, 1), "% (n = ", Development, ")"), "0.0% (n = 0)"),
+    `Percent of Assessment Papers` = ifelse(Assessment > 0, paste0(round(100 * Assessment / total_assess, 1), "% (n = ", Assessment, ")"), "0.0% (n = 0)"),
+    `Percent of All Papers` = ifelse((Development + Assessment) > 0, paste0(round(100 * (Development + Assessment) / total_all, 1), "% (n = ", Development + Assessment, ")"), "0.0% (n = 0)")
+  )
+
   table <- barriers %>%
     left_join(counts, by = c("developmentBarrierID" = "barrier")) %>%
-    select(Barrier = developmentBarrierID, Definition = developmentBarrierDescription, Development, Assessment, Total)
-  table$Development[is.na(table$Development)] <- 0
-  table$Assessment[is.na(table$Assessment)] <- 0
-  table$Total[is.na(table$Total)] <- 0
+    select(Barrier = developmentBarrierID, Definition = developmentBarrierDescription, `Percent of Development Papers`, `Percent of Assessment Papers`, `Percent of All Papers`)
+  table$`Percent of Development Papers`[is.na(table$`Percent of Development Papers`)] <- "0.0% (n = 0)"
+  table$`Percent of Assessment Papers`[is.na(table$`Percent of Assessment Papers`)] <- "0.0% (n = 0)"
+  table$`Percent of All Papers`[is.na(table$`Percent of All Papers`)] <- "0.0% (n = 0)"
 
   reactable(
     table,
-    defaultSorted = "Total",
+    defaultSorted = "Percent of Development Papers",
     defaultSortOrder = "desc",
     searchable = TRUE,
     filterable = TRUE,
@@ -797,9 +803,9 @@ create_barrier_table <- function() {
     columns = list(
       Barrier = colDef(name = "Barrier", sticky = "left", minWidth = 180),
       Definition = colDef(name = "Definition", minWidth = 300),
-      Development = colDef(name = "Development", align = "right", format = colFormat(separators = TRUE, digits = 0), minWidth = 70),
-      Assessment = colDef(name = "Assessment", align = "right", format = colFormat(separators = TRUE, digits = 0), minWidth = 70),
-      Total = colDef(name = "Total", align = "right", format = colFormat(separators = TRUE, digits = 0), minWidth = 70)
+      `Percent of Development Papers` = colDef(name = "Percent of Development Papers", align = "right", minWidth = 120),
+      `Percent of Assessment Papers` = colDef(name = "Percent of Assessment Papers", align = "right", minWidth = 120),
+      `Percent of All Papers` = colDef(name = "Percent of All Papers", align = "right", minWidth = 120)
     ),
     wrap = TRUE,
     width = "100%",
@@ -933,44 +939,47 @@ create_adoption_barrier_plot <- function() {
   return(p)
 }
 
-# Barriers to Adoption Table wrapper
+# Barriers to Adoption Table wrapper (percent columns)
 create_adoption_barrier_table <- function() {
   pt     <- read_csv("paper_theme_tbl.csv", show_col_types = FALSE)
   papers <- read_csv("paper_tbl.csv", show_col_types = FALSE)
   aims   <- read_csv("AIM_tbl.csv", show_col_types = FALSE)
   barriers <- read_csv("adoptionBarrier_tbl.csv", show_col_types = FALSE)
 
-  # Only keep adoption barriers
   adoption_barriers <- barriers$adoptionBarrierID
   pt_adopt <- pt %>% filter(themeID %in% adoption_barriers)
 
-  # Join to get aimType
   joined <- pt_adopt %>%
     left_join(papers, by = "doi") %>%
     left_join(aims, by = c("aim" = "aimID")) %>%
     select(doi, barrier = themeID, aimType)
-    
-  # Count by barrier and aimType
+
   counts <- joined %>%
     filter(!is.na(aimType)) %>%
     distinct(doi, barrier, aimType) %>%
     count(barrier, aimType, name = "n") %>%
     tidyr::pivot_wider(names_from = aimType, values_from = n, values_fill = 0)
 
-  # Add total
-  counts <- counts %>% mutate(Total = rowSums(across(where(is.numeric))))
+  total_dev <- papers %>% left_join(aims, by = c("aim" = "aimID")) %>% filter(aimType == "Development") %>% distinct(doi) %>% nrow()
+  total_assess <- papers %>% left_join(aims, by = c("aim" = "aimID")) %>% filter(aimType == "Assessment") %>% distinct(doi) %>% nrow()
+  total_all <- papers %>% distinct(doi) %>% nrow()
 
-  # Join with definitions
+  counts <- counts %>% mutate(
+    `Percent of Development Papers` = ifelse(Development > 0, paste0(round(100 * Development / total_dev, 1), "% (n = ", Development, ")"), "0.0% (n = 0)"),
+    `Percent of Assessment Papers` = ifelse(Assessment > 0, paste0(round(100 * Assessment / total_assess, 1), "% (n = ", Assessment, ")"), "0.0% (n = 0)"),
+    `Percent of All Papers` = ifelse((Development + Assessment) > 0, paste0(round(100 * (Development + Assessment) / total_all, 1), "% (n = ", Development + Assessment, ")"), "0.0% (n = 0)")
+  )
+
   table <- barriers %>%
     left_join(counts, by = c("adoptionBarrierID" = "barrier")) %>%
-    select(Barrier = adoptionBarrierID, Definition = adoptionBarrierDescription, Development, Assessment, Total)
-  table$Development[is.na(table$Development)] <- 0
-  table$Assessment[is.na(table$Assessment)] <- 0
-  table$Total[is.na(table$Total)] <- 0
+    select(Barrier = adoptionBarrierID, Definition = adoptionBarrierDescription, `Percent of Development Papers`, `Percent of Assessment Papers`, `Percent of All Papers`)
+  table$`Percent of Development Papers`[is.na(table$`Percent of Development Papers`)] <- "0.0% (n = 0)"
+  table$`Percent of Assessment Papers`[is.na(table$`Percent of Assessment Papers`)] <- "0.0% (n = 0)"
+  table$`Percent of All Papers`[is.na(table$`Percent of All Papers`)] <- "0.0% (n = 0)"
 
   reactable(
     table,
-    defaultSorted = "Total",
+    defaultSorted = "Percent of Development Papers",
     defaultSortOrder = "desc",
     searchable = TRUE,
     filterable = TRUE,
@@ -985,32 +994,128 @@ create_adoption_barrier_table <- function() {
     columns = list(
       Barrier = colDef(name = "Barrier", sticky = "left", minWidth = 180),
       Definition = colDef(name = "Definition", minWidth = 300),
-      Development = colDef(name = "Development", align = "right", format = colFormat(separators = TRUE, digits = 0), minWidth = 70),
-      Assessment = colDef(name = "Assessment", align = "right", format = colFormat(separators = TRUE, digits = 0), minWidth = 70),
-      Total = colDef(name = "Total", align = "right", format = colFormat(separators = TRUE, digits = 0), minWidth = 70)
+      `Percent of Development Papers` = colDef(name = "Percent of Development Papers", align = "right", minWidth = 120),
+      `Percent of Assessment Papers` = colDef(name = "Percent of Assessment Papers", align = "right", minWidth = 120),
+      `Percent of All Papers` = colDef(name = "Percent of All Papers", align = "right", minWidth = 120)
+    ),
+    wrap = TRUE,
+    width = "100%",
+    style = list(height = "70vh", maxHeight = "none", minHeight = "300px", overflowY = "auto")
+  )
+}
+
+# Add a table for Papers by Aim Type
+create_aim_type_table <- function() {
+  papers <- read_csv("paper_tbl.csv", show_col_types = FALSE)
+  aims   <- read_csv("AIM_tbl.csv", show_col_types = FALSE)
+
+  plotdata <- papers %>%
+    select(dateCreated, aimID = aim) %>%
+    filter(!aimID %in% c("Cell Differentiation", "Religion", "MIN", "Review")) %>%
+    left_join(aims, by = "aimID") %>%
+    select(aimType, Date = dateCreated) %>%
+    drop_na(aimType)
+
+  # 5-year bins
+  min_year <- lubridate::year(min(plotdata$Date, na.rm = TRUE))
+  max_year <- lubridate::year(max(plotdata$Date, na.rm = TRUE))
+  bin_starts <- seq(floor(min_year / 5) * 5, ceiling(max_year / 5) * 5, by = 5)
+  bin_labels <- sprintf("%d–%d", bin_starts, bin_starts + 4)
+
+  plotdata <- plotdata %>%
+    mutate(
+      BinStart = bin_starts[findInterval(lubridate::year(Date), bin_starts, left.open = FALSE)],
+      BinLabel = factor(sprintf("%d–%d", BinStart, BinStart + 4), levels = bin_labels)
+    )
+
+  # Count papers per aimType × bin
+  counts_long <- plotdata %>%
+    count(aimType, BinLabel, name = "n") %>%
+    complete(aimType, BinLabel, fill = list(n = 0))
+
+  # Order aimType
+  aim_type_levels <- c("Development", "Assessment")
+  counts_long$aimType <- factor(counts_long$aimType, levels = aim_type_levels)
+
+  counts_wide <- counts_long %>%
+    pivot_wider(names_from = BinLabel, values_from = n, values_fill = 0) %>%
+    arrange(match(aimType, aim_type_levels))
+
+  # Drop bin columns with all zeros
+  non_empty_cols <- counts_wide %>%
+    select(-aimType) %>%
+    summarise(across(everything(), sum)) %>%
+    select(where(~ .x > 0)) %>%
+    names()
+
+  counts_wide <- counts_wide %>%
+    select(aimType, all_of(non_empty_cols)) %>%
+    mutate(Total = rowSums(across(where(is.numeric))))
+
+  num_cols <- setdiff(names(counts_wide), "aimType")
+
+  reactable(
+    counts_wide,
+    defaultSorted     = "Total",
+    defaultSortOrder  = "desc",
+    searchable        = TRUE,
+    filterable        = TRUE,
+    striped           = TRUE,
+    highlight         = TRUE,
+    defaultPageSize   = 2,
+    paginationType    = "jump",
+    theme = reactableTheme(
+      stripedColor   = "#f7f7f7",
+      highlightColor = "#ffe7ad",
+      style = list(fontFamily = "system-ui, sans-serif", fontSize = 14)
+    ),
+    columns = c(
+      list(aimType = colDef(name = "Aim Type", sticky = "left", minWidth = 120)),
+      setNames(
+        lapply(num_cols, function(col) {
+          colDef(align = "right",
+                 format = colFormat(separators = TRUE, digits = 0),
+                 minWidth = 70)
+        }),
+        num_cols
+      )
     ),
     wrap = FALSE
   )
 }
 
 ## ---- reusable plot-card module ----
-plot_card_ui <- function(id, title) {
+plot_card_ui <- function(id, title = NULL, subtitle = NULL, n = NULL, oneliner = NULL) {
   ns <- NS(id)
   tagList(
     card(
       card_header(
-        h3(title),
-        actionButton(ns("help"), "?", class = "btn-sm btn-secondary", style = "float:right")
+        fluidRow(
+          column(7, style = "display: flex; align-items: center; gap: 10px;",
+            actionButton(ns("help"), "Help", class = "btn-sm btn-danger"),
+            actionButton(ns("desc"), "Description", class = "btn-sm btn-primary"),
+            if (!is.null(title) || !is.null(n) || !is.null(oneliner)) tags$div(
+              style = "display: flex; flex-direction: row; align-items: center; gap: 18px; margin-left: 10px; font-family: system-ui, sans-serif; width: 100%;",
+              tags$div(
+                style = "display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 0;",
+                if (!is.null(title)) tags$span(title, style = "font-size: 0.85em; color: #888; font-weight: normal; margin-bottom: 0;"),
+                if (!is.null(n)) tags$span(style = "font-size: 0.85em; color: #888; margin-top: 0;", paste0("n=", n))
+              ),
+              if (!is.null(oneliner)) tags$span(oneliner, style = "font-size: 0.67em; color: #888; margin-top: 0; max-width: 18em; white-space: normal; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;")
+            )
+          ),
+          column(5)
+        ),
+        if (!is.null(subtitle)) tags$div(tags$strong(subtitle), style = "margin-top: 0.5em;")
       ),
       card_body(
-        uiOutput(ns("caption")),
         uiOutput(ns("plot"))
       )
     )
   )
 }
 
-plot_card_server <- function(id, plot_fun, caption_md, help_md, is_reactable = FALSE) {
+plot_card_server <- function(id, plot_fun, caption_md, help_md, title = NULL, subtitle = NULL, n = NULL, is_reactable = FALSE) {
   moduleServer(id, function(input, output, session) {
     # Render the visual
     output$plot <- renderUI({
@@ -1020,18 +1125,23 @@ plot_card_server <- function(id, plot_fun, caption_md, help_md, is_reactable = F
         renderPlotly({ plot_fun() })
       }
     })
-    
-    # Caption beneath the visual
-    output$caption <- renderUI({
-      markdown::markdownToHTML(text = caption_md, fragment.only = TRUE) |> HTML()
-    })
-    
+
     # Help modal
     observeEvent(input$help, {
       showModal(
         modalDialog(
           title = "How to interact",
           markdown::markdownToHTML(text = help_md, fragment.only = TRUE) |> HTML(),
+          easyClose = TRUE, footer = NULL, size = "l"
+        )
+      )
+    })
+    # Description modal
+    observeEvent(input$desc, {
+      showModal(
+        modalDialog(
+          title = "Description",
+          markdown::markdownToHTML(text = caption_md, fragment.only = TRUE) |> HTML(),
           easyClose = TRUE, footer = NULL, size = "l"
         )
       )
@@ -1045,24 +1155,42 @@ ui <- page_navbar(
   theme = bs_theme(version = 5, bootswatch = "minty") |>
     bs_add_variables(primary = "#006d77"),
   
-  nav_panel("Aims Table", plot_card_ui("aims_table", "Aims Table")),
-  nav_panel("Papers by Aim", plot_card_ui("rain", "Papers by Aim")),
-  nav_panel("Papers by Aim Type", plot_card_ui("rain_type", "Papers by Aim Type")),
-  nav_panel("Papers by Justification", plot_card_ui("justification", "Papers by Justification")),
-  nav_panel("Barriers to Development", 
+  nav_panel("Papers by Aim",
     navs_tab_card(
       nav("Plot View",
-        card(
-          card_header(h3("Barriers to Development")),
-          card_body(
-            uiOutput("barrier_caption"),
-            plotlyOutput("barrier_plot", height = "600px")
-          )
-        )
+        plot_card_ui("rain", title = "Papers by Aim Over Time", n = length(unique(read_csv("paper_tbl.csv", show_col_types = FALSE)$doi)), oneliner = "Shows the distribution of research aims in cultivated meat over time.")
       ),
       nav("Table View",
         card(
-          card_header(h3("Barriers to Development Table")),
+          card_body(
+            reactableOutput("aims_table_table")
+          )
+        )
+      )
+    )
+  ),
+  nav_panel("Papers by Aim Type",
+    navs_tab_card(
+      nav("Plot View",
+        plot_card_ui("rain_type", title = "Papers by Aim Type Over Time", n = length(unique(read_csv("paper_tbl.csv", show_col_types = FALSE)$doi)), oneliner = "Compares the prevalence of development vs. assessment aims through time.")
+      ),
+      nav("Table View",
+        card(
+          card_body(
+            reactableOutput("aim_type_table")
+          )
+        )
+      )
+    )
+  ),
+  nav_panel("Papers by Justification", plot_card_ui("justification", title = "Justifications for Cultivated Meat Over Time", n = length(unique(read_csv("paper_tbl.csv", show_col_types = FALSE)$doi)), oneliner = "Highlights the well-being justifications cited in cultivated meat research.")),
+  nav_panel("Barriers to Development", 
+    navs_tab_card(
+      nav("Plot View",
+        plot_card_ui("barrier_plot", title = "Barriers to Development Over Time", n = length(unique(read_csv("paper_tbl.csv", show_col_types = FALSE)$doi)), oneliner = "Visualizes key technical barriers to developing cultivated meat and their frequency over time.")
+      ),
+      nav("Table View",
+        card(
           card_body(
             reactableOutput("barrier_table")
           )
@@ -1073,17 +1201,10 @@ ui <- page_navbar(
   nav_panel("Barriers to Adoption", 
     navs_tab_card(
       nav("Plot View",
-        card(
-          card_header(h3("Barriers to Adoption")),
-          card_body(
-            uiOutput("adoption_barrier_caption"),
-            plotlyOutput("adoption_barrier_plot", height = "600px")
-          )
-        )
+        plot_card_ui("adoption_barrier_plot", title = "Barriers to Adoption Over Time", n = length(unique(read_csv("paper_tbl.csv", show_col_types = FALSE)$doi)), oneliner = "Shows the main obstacles to consumer and regulatory adoption of cultivated meat.")
       ),
       nav("Table View",
         card(
-          card_header(h3("Barriers to Adoption Table")),
           card_body(
             reactableOutput("adoption_barrier_table")
           )
@@ -1100,7 +1221,7 @@ server <- function(input, output, session) {
     id = "aims_table",
     plot_fun = create_aims_table,
     caption_md = "From 2010 to 2014, only three research aims were represented, with philosophical assumptions being the most prevalent, followed by bioreactors and process design. Between 2015 and 2019, the field broadened, with consumer acceptance becoming the leading aim (11 articles), followed by education and outreach, philosophical assumptions, performance analysis, and media and nutrient sources (each with 4 articles). In the most recent period (2020–2024), scaffolding materials dominates with 114 papers, followed by consumer acceptance (78), media and nutrient sources (59), bioreactors and process design (47), and cell sources and maintenance (39). Notably, philosophical assumptions—once a leading category—has become the least represented, with just 4 papers.",
-    help_md = "You can search, filter, and sort the table using the controls above each column. Use the search box to find specific aims or time periods. Click column headers to sort.",
+    help_md = "You can search, filter, and sort the table using the controls above each column. Use the search box to find specific aims or time periods. Click column headers to sort. Click a point to open the paper's DOI link in a new tab.",
     is_reactable = TRUE
   )
   
@@ -1109,7 +1230,7 @@ server <- function(input, output, session) {
     id = "rain",
     plot_fun = create_rain_cloud_plot,
     caption_md = "Over time, assessment-type aims such as policy and regulation and stakeholder assessment remain sparsely represented, with the notable exception of consumer acceptance, which shows steady growth. In contrast, development-type aims—particularly scaffolding materials, media and nutrient sources, and bioreactors and process design—have seen relatively equal and substantial representation from 2022 to 2024. Cell sources and maintenance appears to be an emerging focus, as shown by the widening, right-angled shape of the violin plot, indicating a sharp increase in recent attention. A similar triangular expansion is visible for scaffolding materials, though the growth in cell sources appears even more accelerated. Meanwhile, aims with more block-like shapes, such as consumer acceptance, suggest steadier but slower growth. These visual cues point to a shifting research landscape, where development-type aims are accelerating more rapidly than assessment, raising questions about what is driving this trend.",
-    help_md = "Hover your mouse over the plot to make the icons appear in the top right. These let you download screenshots, pan, select points, adjust axes, and reset the view by clicking the house icon.",
+    help_md = "Hover your mouse over the plot to make the icons appear in the top right. These let you download screenshots, pan, select points, adjust axes, and reset the view by clicking the house icon. Click a point to open the paper's DOI link in a new tab.",
   )
   
   # Papers by Aim Type
@@ -1117,7 +1238,7 @@ server <- function(input, output, session) {
     id = "rain_type",
     plot_fun = create_rain_cloud_type_plot,
     caption_md = "From 2010 to 2014, only one paper was published, categorized under a development-type aim. Between 2014 and 2016, two assessment-type papers emerged, marking the entry of evaluative studies into the field. During 2016–2018, eight additional papers were published, six of which were assessment-type, indicating an early dominance of that category. From 2018 to 2020, two more development-type papers appeared, while assessment continued to grow with twelve more. In the 2020–2022 period, representation between assessment and development-type aims became nearly equal. By 2022–2024, development-type aims surpassed assessment, suggesting a shifting focus toward advancing technologies and production methods in cultivated meat research.",
-    help_md = "Hover your mouse over the plot to make the icons appear in the top right. These let you download screenshots, pan, select points, adjust axes, and reset the view by clicking the house icon.",
+    help_md = "Hover your mouse over the plot to make the icons appear in the top right. These let you download screenshots, pan, select points, adjust axes, and reset the view by clicking the house icon. Click a point to open the paper's DOI link in a new tab.",
   )
   
   # Papers by Justification
@@ -1125,7 +1246,7 @@ server <- function(input, output, session) {
     id = "justification",
     plot_fun = create_justification_plot,
     caption_md = "This plot shows the frequency of opportunity justifications—identified through BLOC analysis—as they relate to human well-being (magenta), livestock well-being (cyan), and environmental well-being (yellow). These justifications highlight problems in current food systems that cultivated meat is proposed to solve. All three types of well-being are mentioned across most research aims, with human well-being most frequently referenced, particularly in consumer acceptance papers. Livestock well-being appears slightly less often but still spans across aims, while environmental well-being is consistently represented. Overall, the plot suggests that across aims, justifications for cultivated meat tend to emphasize a broad array of potential benefits.",
-    help_md = "Hover your mouse over the plot to make the icons appear in the top right. These let you download screenshots, pan, select points, adjust axes, and reset the view by clicking the house icon. You can also click legend items to hide or show groups."
+    help_md = "Hover your mouse over the plot to make the icons appear in the top right. These let you download screenshots, pan, select points, adjust axes, and reset the view by clicking the house icon. You can also click legend items to hide or show groups. Click a point to open the paper's DOI link in a new tab.",
   )
 
   # Barriers to Development
@@ -1141,6 +1262,10 @@ server <- function(input, output, session) {
   output$adoption_barrier_caption <- renderUI({
     HTML("<b>Each point shows a paper-barrier association for adoption. Orange = Development aim, Black = Assessment aim. Y axis is the barrier to adoption, X is publication date.")
   })
+
+  # Add a table for Papers by Aim Type
+  output$aims_table_table <- renderReactable({ create_aims_table() })
+  output$aim_type_table <- renderReactable({ create_aim_type_table() })
 }
 
 ## ---- app launcher ----

@@ -788,11 +788,199 @@ create_barrier_table <- function() {
     filterable = TRUE,
     striped = TRUE,
     highlight = TRUE,
-    defaultPageSize = 12,
+    defaultPageSize = 20,
     theme = reactableTheme(
       stripedColor = "#f7f7f7",
       highlightColor = "#ffe7ad",
-      style = list(fontFamily = "system-ui, sans-serif", fontSize = 14)
+      style = list(fontFamily = "system-ui, sans-serif", fontSize = 12, lineHeight = "1.1", padding = "2px 4px")
+    ),
+    columns = list(
+      Barrier = colDef(name = "Barrier", sticky = "left", minWidth = 180),
+      Definition = colDef(name = "Definition", minWidth = 300),
+      Development = colDef(name = "Development", align = "right", format = colFormat(separators = TRUE, digits = 0), minWidth = 70),
+      Assessment = colDef(name = "Assessment", align = "right", format = colFormat(separators = TRUE, digits = 0), minWidth = 70),
+      Total = colDef(name = "Total", align = "right", format = colFormat(separators = TRUE, digits = 0), minWidth = 70)
+    ),
+    wrap = TRUE,
+    width = "100%",
+    style = list(height = "70vh", maxHeight = "none", minHeight = "300px", overflowY = "auto")
+  )
+}
+
+# Barriers to Adoption Plot wrapper
+create_adoption_barrier_plot <- function() {
+  papers <- read_csv("paper_tbl.csv", show_col_types = FALSE)
+  aims   <- read_csv("AIM_tbl.csv", show_col_types = FALSE)
+  pt     <- read_csv("paper_theme_tbl.csv", show_col_types = FALSE)
+  barriers <- read_csv("adoptionBarrier_tbl.csv", show_col_types = FALSE)
+
+  # Only keep adoption barriers
+  adoption_barriers <- barriers$adoptionBarrierID
+  pt_adopt <- pt %>% filter(themeID %in% adoption_barriers)
+
+  # Join all info robustly
+  plotdata <- pt_adopt %>%
+    left_join(papers, by = "doi") %>%
+    left_join(aims, by = c("aim" = "aimID")) %>%
+    left_join(barriers, by = c("themeID" = "adoptionBarrierID")) %>%
+    select(doi, dateCreated, aimType, barrier = themeID, barrierDesc = adoptionBarrierDescription) %>%
+    filter(!is.na(dateCreated), !is.na(barrier), !is.na(aimType)) %>%
+    distinct(doi, barrier, .keep_all = TRUE)
+
+  # Order barriers by descending count
+  barrier_counts <- plotdata %>% count(barrier, name = "n")
+  barrier_levels <- barrier_counts %>% arrange(desc(n)) %>% pull(barrier)
+  n_barriers <- length(barrier_levels)
+  grid_lines <- seq(0.5, n_barriers + 0.5, by = 1)
+  plotdata$barrier <- factor(plotdata$barrier, levels = barrier_levels)
+  plotdata$y_base <- as.numeric(plotdata$barrier)
+  plotdata$color <- ifelse(plotdata$aimType == "Development", color_development, color_assessment)
+
+  # Reduce jitter for more compact points
+  jitter_width <- 0.25
+  set.seed(123)
+  plotdata <- plotdata %>%
+    mutate(date_bin = as.Date(cut(dateCreated, breaks = "30 days"))) %>%
+    group_by(barrier, date_bin) %>%
+    mutate(
+      n_dup  = n(),
+      y_plot = y_base + ifelse(n_dup > 1, runif(n(), -jitter_width, jitter_width), 0)
+    ) %>%
+    ungroup()
+
+  # Initialize plotly object before adding violins
+  p <- plot_ly()
+  violin_width <- 0.45
+  for (i in seq_along(barrier_levels)) {
+    this_barrier <- barrier_levels[i]
+    p <- add_trace(
+      p,
+      data = filter(plotdata, barrier == this_barrier),
+      type = "violin",
+      orientation = "h",
+      x = ~dateCreated,
+      y = i,
+      width = violin_width,
+      spanmode = "hard",
+      points = FALSE,
+      line = list(width = 0),
+      fillcolor = color_violin_grey,
+      hoverinfo = "skip",
+      showlegend = FALSE,
+      opacity = 0.5
+    )
+  }
+  # Plot points (with legend for aimType)
+  p <- add_trace(
+    p,
+    data = plotdata %>% filter(aimType == "Development"),
+    x = ~dateCreated,
+    y = ~y_plot,
+    type = "scatter",
+    mode = "markers",
+    marker = list(size = 4, color = color_development),
+    name = "Development",
+    text = ~paste0(
+      "<b>Barrier:</b> ", barrier,
+      "<br><b>Date:</b> ", dateCreated,
+      "<br><b>Aim Type:</b> ", aimType,
+      "<br><b>DOI:</b> ", doi
+    ),
+    hoverinfo = "text",
+    showlegend = TRUE
+  )
+  p <- add_trace(
+    p,
+    data = plotdata %>% filter(aimType == "Assessment"),
+    x = ~dateCreated,
+    y = ~y_plot,
+    type = "scatter",
+    mode = "markers",
+    marker = list(size = 4, color = color_assessment),
+    name = "Assessment",
+    text = ~paste0(
+      "<b>Barrier:</b> ", barrier,
+      "<br><b>Date:</b> ", dateCreated,
+      "<br><b>Aim Type:</b> ", aimType,
+      "<br><b>DOI:</b> ", doi
+    ),
+    hoverinfo = "text",
+    showlegend = TRUE
+  )
+  p <- layout(
+    p,
+    title = "Barriers to Adoption by Time and Aim Type",
+    xaxis = list(title = "Date Created"),
+    yaxis = list(
+      title = "Barrier to Adoption",
+      tickmode = "array",
+      tickvals = seq_along(barrier_levels),
+      ticktext = barrier_levels,
+      autorange = "reversed",
+      range = c(0.7, n_barriers + 0.3),
+      showgrid = FALSE,
+      zeroline = FALSE
+    ),
+    shapes = lapply(grid_lines, function(y) list(
+      type = "line",
+      x0 = 0, x1 = 1, xref = "paper",
+      y0 = y, y1 = y, yref = "y",
+      line = list(color = "#cccccc", width = 1)
+    )),
+    legend = list(title = list(text = "<b>Aim Type</b>")),
+    height = 600
+  )
+  return(p)
+}
+
+# Barriers to Adoption Table wrapper
+create_adoption_barrier_table <- function() {
+  pt     <- read_csv("paper_theme_tbl.csv", show_col_types = FALSE)
+  papers <- read_csv("paper_tbl.csv", show_col_types = FALSE)
+  aims   <- read_csv("AIM_tbl.csv", show_col_types = FALSE)
+  barriers <- read_csv("adoptionBarrier_tbl.csv", show_col_types = FALSE)
+
+  # Only keep adoption barriers
+  adoption_barriers <- barriers$adoptionBarrierID
+  pt_adopt <- pt %>% filter(themeID %in% adoption_barriers)
+
+  # Join to get aimType
+  joined <- pt_adopt %>%
+    left_join(papers, by = "doi") %>%
+    left_join(aims, by = c("aim" = "aimID")) %>%
+    select(doi, barrier = themeID, aimType)
+    
+  # Count by barrier and aimType
+  counts <- joined %>%
+    filter(!is.na(aimType)) %>%
+    distinct(doi, barrier, aimType) %>%
+    count(barrier, aimType, name = "n") %>%
+    tidyr::pivot_wider(names_from = aimType, values_from = n, values_fill = 0)
+
+  # Add total
+  counts <- counts %>% mutate(Total = rowSums(across(where(is.numeric))))
+
+  # Join with definitions
+  table <- barriers %>%
+    left_join(counts, by = c("adoptionBarrierID" = "barrier")) %>%
+    select(Barrier = adoptionBarrierID, Definition = adoptionBarrierDescription, Development, Assessment, Total)
+  table$Development[is.na(table$Development)] <- 0
+  table$Assessment[is.na(table$Assessment)] <- 0
+  table$Total[is.na(table$Total)] <- 0
+
+  reactable(
+    table,
+    defaultSorted = "Total",
+    defaultSortOrder = "desc",
+    searchable = TRUE,
+    filterable = TRUE,
+    striped = TRUE,
+    highlight = TRUE,
+    defaultPageSize = 3,
+    theme = reactableTheme(
+      stripedColor = "#f7f7f7",
+      highlightColor = "#ffe7ad",
+      style = list(fontFamily = "system-ui, sans-serif", fontSize = 12, lineHeight = "1.1", padding = "2px 4px")
     ),
     columns = list(
       Barrier = colDef(name = "Barrier", sticky = "left", minWidth = 180),
@@ -862,13 +1050,44 @@ ui <- page_navbar(
   nav_panel("Papers by Aim Type", plot_card_ui("rain_type", "Papers by Aim Type")),
   nav_panel("Papers by Justification", plot_card_ui("justification", "Papers by Justification")),
   nav_panel("Barriers to Development", 
-    card(
-      card_header(h3("Barriers to Development")),
-      card_body(
-        uiOutput("barrier_caption"),
-        plotlyOutput("barrier_plot", height = "600px"),
-        h4("Barrier Table"),
-        reactableOutput("barrier_table")
+    navs_tab_card(
+      nav("Plot View",
+        card(
+          card_header(h3("Barriers to Development")),
+          card_body(
+            uiOutput("barrier_caption"),
+            plotlyOutput("barrier_plot", height = "600px")
+          )
+        )
+      ),
+      nav("Table View",
+        card(
+          card_header(h3("Barriers to Development Table")),
+          card_body(
+            reactableOutput("barrier_table")
+          )
+        )
+      )
+    )
+  ),
+  nav_panel("Barriers to Adoption", 
+    navs_tab_card(
+      nav("Plot View",
+        card(
+          card_header(h3("Barriers to Adoption")),
+          card_body(
+            uiOutput("adoption_barrier_caption"),
+            plotlyOutput("adoption_barrier_plot", height = "600px")
+          )
+        )
+      ),
+      nav("Table View",
+        card(
+          card_header(h3("Barriers to Adoption Table")),
+          card_body(
+            reactableOutput("adoption_barrier_table")
+          )
+        )
       )
     )
   )
@@ -915,6 +1134,13 @@ server <- function(input, output, session) {
     HTML("<b>Each point shows a paper-barrier association. Orange = Development aim, Black = Assessment aim. Y axis is the barrier to development, X is publication date.")
   })
   output$barrier_table <- renderReactable({ create_barrier_table() })
+
+  # Barriers to Adoption
+  output$adoption_barrier_plot <- renderPlotly({ create_adoption_barrier_plot() })
+  output$adoption_barrier_table <- renderReactable({ create_adoption_barrier_table() })
+  output$adoption_barrier_caption <- renderUI({
+    HTML("<b>Each point shows a paper-barrier association for adoption. Orange = Development aim, Black = Assessment aim. Y axis is the barrier to adoption, X is publication date.")
+  })
 }
 
 ## ---- app launcher ----

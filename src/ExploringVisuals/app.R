@@ -15,6 +15,25 @@ library(here)      # for robust file paths
 library(tidyr)     # for drop_na and other tidyr functions
 library(htmlwidgets) # for onRender used with plotly
 
+# ---- Color Variables ----
+# Aim type colors
+color_development <- "orange"
+color_assessment  <- "black"
+
+# BLOC colors
+color_barrier     <- "#FF0000"      # red
+color_opportunity <- "#008000"      # green4
+color_limitation  <- "#FFD700"      # goldenrod2
+color_consequence <- "#9400D3"      # purple
+
+# Theme colors (Justification plot)
+color_human       <- "magenta"
+color_livestock   <- "cyan"
+color_environment <- "yellow"
+
+# Grey violin color for barrier plot
+color_violin_grey <- "rgba(160,160,160,0.25)"
+
 ## ---- create wrapper functions for each visualization ----
 
 # Rain Cloud Plot wrapper
@@ -243,10 +262,10 @@ create_theme_bar_plot <- function() {
     coord_flip() +
     scale_fill_manual(
       values = c(
-        "Barrier" = "red",
-        "Opportunity" = "green4",
-        "Limitation" = "goldenrod2",
-        "Consequence" = "purple"
+        "Barrier" = color_barrier,
+        "Opportunity" = color_opportunity,
+        "Limitation" = color_limitation,
+        "Consequence" = color_consequence
       )
     ) +
     theme_minimal(base_size = 13) +
@@ -499,9 +518,9 @@ create_justification_plot <- function() {
     mutate(rel_width = 0.15 + 0.45 * sqrt(n) / max_sqrt)
   
   # Palette & URL
-  col_pal <- c("Humans" = "magenta",
-               "Livestock" = "cyan",
-               "the Environment" = 'yellow')
+  col_pal <- c("Humans" = color_human,
+               "Livestock" = color_livestock,
+               "the Environment" = color_environment)
   
   plotdata$color <- col_pal[plotdata$Theme]
   plotdata$url   <- paste0("https://doi.org/", plotdata$DOI)
@@ -609,47 +628,78 @@ create_barrier_plot <- function() {
   dev_barriers <- barriers$developmentBarrierID
   pt_dev <- pt %>% filter(themeID %in% dev_barriers)
 
-  # Join all info
+  # Join all info robustly
   plotdata <- pt_dev %>%
     left_join(papers, by = "doi") %>%
     left_join(aims, by = c("aim" = "aimID")) %>%
     left_join(barriers, by = c("themeID" = "developmentBarrierID")) %>%
     select(doi, dateCreated, aimType, barrier = themeID, barrierDesc = developmentBarrierDescription) %>%
-    drop_na(dateCreated, barrier, aimType)
+    filter(!is.na(dateCreated), !is.na(barrier), !is.na(aimType)) %>%
+    distinct(doi, barrier, .keep_all = TRUE)
 
-  # Factor for y axis
-  barrier_levels <- barriers$developmentBarrierID
-  plotdata$barrier <- factor(plotdata$barrier, levels = rev(barrier_levels))
+  # Order barriers by descending count
+  barrier_counts <- plotdata %>% count(barrier, name = "n")
+  barrier_levels <- barrier_counts %>% arrange(desc(n)) %>% pull(barrier)
+  n_barriers <- length(barrier_levels)
+  grid_lines <- seq(0.5, n_barriers + 0.5, by = 1)
+  plotdata$barrier <- factor(plotdata$barrier, levels = barrier_levels)
   plotdata$y_base <- as.numeric(plotdata$barrier)
-  plotdata$color <- ifelse(plotdata$aimType == "Development", "orange", "black")
+  plotdata$color <- ifelse(plotdata$aimType == "Development", color_development, color_assessment)
 
-  # Jitter
-  set.seed(123)
+  # Reduce jitter for more compact points
+  jitter_width <- 0.25  # reduced from 0.45
   plotdata <- plotdata %>%
     mutate(date_bin = as.Date(cut(dateCreated, breaks = "30 days"))) %>%
     group_by(barrier, date_bin) %>%
     mutate(
       n_dup  = n(),
-      y_plot = y_base + ifelse(n_dup > 1, runif(n(), -0.20, 0.20), 0)
+      y_plot = y_base + ifelse(n_dup > 1, runif(n(), -jitter_width, jitter_width), 0)
     ) %>%
     ungroup()
 
-  # Plot
-  p <- plot_ly(
+  # Initialize plotly object before adding violins
+  p <- plot_ly()
+  # Add grey violin for each barrier (make narrower)
+  violin_width <- 0.45  # reduced from 0.7 for tighter spacing
+  for (i in seq_along(barrier_levels)) {
+    this_barrier <- barrier_levels[i]
+    p <- add_trace(
+      p,
+      data = filter(plotdata, barrier == this_barrier),
+      type = "violin",
+      orientation = "h",
+      x = ~dateCreated,
+      y = i,
+      width = violin_width,
+      spanmode = "hard",
+      points = FALSE,
+      line = list(width = 0),
+      fillcolor = color_violin_grey,
+      hoverinfo = "skip",
+      showlegend = FALSE,
+      opacity = 0.5
+    )
+  }
+
+  # Plot points (smaller)
+  p <- add_trace(
+    p,
     data = plotdata,
     x = ~dateCreated,
     y = ~y_plot,
     type = "scatter",
     mode = "markers",
-    marker = list(size = 6, color = ~color),
+    marker = list(size = 4, color = ~color),  # reduced from 6
     text = ~paste0(
       "<b>Barrier:</b> ", barrier,
       "<br><b>Date:</b> ", dateCreated,
-      "<br><b>Aim Type:</b> ", aimType
+      "<br><b>Aim Type:</b> ", aimType,
+      "<br><b>DOI:</b> ", doi
     ),
     hoverinfo = "text",
     showlegend = FALSE
   )
+  # Make y-axis range tighter
   p <- layout(
     p,
     title = "Barriers to Development by Time and Aim Type",
@@ -658,33 +708,61 @@ create_barrier_plot <- function() {
       title = "Barrier to Development",
       tickmode = "array",
       tickvals = seq_along(barrier_levels),
-      ticktext = rev(barrier_levels),
-      autorange = "reversed"
+      ticktext = barrier_levels,
+      autorange = "reversed",
+      range = c(0.7, n_barriers + 0.3),  # tighter than (0.5, n_barriers+0.5)
+      showgrid = FALSE,
+      zeroline = FALSE
     ),
+    shapes = lapply(grid_lines, function(y) list(
+      type = "line",
+      x0 = 0, x1 = 1, xref = "paper",
+      y0 = y, y1 = y, yref = "y",
+      line = list(color = "#cccccc", width = 1)
+    )),
     height = 600
   )
   return(p)
 }
 
-# Barrier Table wrapper
+# Barrier Table wrapper (with assessment, development, and total counts)
 create_barrier_table <- function() {
   pt     <- read_csv("paper_theme_tbl.csv", show_col_types = FALSE)
+  papers <- read_csv("paper_tbl.csv", show_col_types = FALSE)
+  aims   <- read_csv("AIM_tbl.csv", show_col_types = FALSE)
   barriers <- read_csv("developmentBarrier_tbl.csv", show_col_types = FALSE)
 
   # Only keep development barriers
   dev_barriers <- barriers$developmentBarrierID
   pt_dev <- pt %>% filter(themeID %in% dev_barriers)
 
-  # Count per barrier
-  counts <- pt_dev %>% count(themeID, name = "papers")
+  # Join to get aimType
+  joined <- pt_dev %>%
+    left_join(papers, by = "doi") %>%
+    left_join(aims, by = c("aim" = "aimID")) %>%
+    select(doi, barrier = themeID, aimType)
+    
+  # Count by barrier and aimType
+  counts <- joined %>%
+    filter(!is.na(aimType)) %>%
+    distinct(doi, barrier, aimType) %>%
+    count(barrier, aimType, name = "n") %>%
+    tidyr::pivot_wider(names_from = aimType, values_from = n, values_fill = 0)
+
+  # Add total
+  counts <- counts %>% mutate(Total = rowSums(across(where(is.numeric))))
+
+  # Join with definitions
   table <- barriers %>%
-    left_join(counts, by = c("developmentBarrierID" = "themeID")) %>%
-    mutate(papers = replace_na(papers, 0)) %>%
-    select(Barrier = developmentBarrierID, Definition = developmentBarrierDescription, Papers = papers)
+    left_join(counts, by = c("developmentBarrierID" = "barrier")) %>%
+    select(Barrier = developmentBarrierID, Definition = developmentBarrierDescription, Development, Assessment, Total)
+  table$Development[is.na(table$Development)] <- 0
+  table$Assessment[is.na(table$Assessment)] <- 0
+  table$Total[is.na(table$Total)] <- 0
 
   reactable(
     table,
-    defaultSorted = "Papers",
+    defaultSorted = "Total",
     defaultSortOrder = "desc",
     searchable = TRUE,
     filterable = TRUE,
@@ -699,7 +777,9 @@ create_barrier_table <- function() {
     columns = list(
       Barrier = colDef(name = "Barrier", sticky = "left", minWidth = 180),
       Definition = colDef(name = "Definition", minWidth = 300),
-      Papers = colDef(name = "Number of Papers", align = "right", format = colFormat(separators = TRUE, digits = 0), minWidth = 70)
+      Development = colDef(name = "Development", align = "right", format = colFormat(separators = TRUE, digits = 0), minWidth = 70),
+      Assessment = colDef(name = "Assessment", align = "right", format = colFormat(separators = TRUE, digits = 0), minWidth = 70),
+      Total = colDef(name = "Total", align = "right", format = colFormat(separators = TRUE, digits = 0), minWidth = 70)
     ),
     wrap = FALSE
   )
@@ -811,10 +891,10 @@ server <- function(input, output, session) {
 
   # Barriers to Development
   output$barrier_plot <- renderPlotly({ create_barrier_plot() })
-  output$barrier_table <- renderReactable({ create_barrier_table() })
   output$barrier_caption <- renderUI({
-    HTML("<b>Each point shows a paper-barrier association. Orange = Development aim, Black = Assessment aim. Y axis is the barrier to development, X is publication date. Table below shows barrier definitions and counts.")
+    HTML("<b>Each point shows a paper-barrier association. Orange = Development aim, Black = Assessment aim. Y axis is the barrier to development, X is publication date.")
   })
+  output$barrier_table <- renderReactable({ create_barrier_table() })
 }
 
 ## ---- app launcher ----

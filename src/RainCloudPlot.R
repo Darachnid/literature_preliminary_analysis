@@ -174,7 +174,3 @@ saveWidget(
   file          = out_path,
   selfcontained = TRUE
 )
-
-cat("✓ saved to", out_path, "\n")
-
-Why this works

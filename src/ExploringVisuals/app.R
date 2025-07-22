@@ -681,15 +681,16 @@ create_barrier_plot <- function() {
     )
   }
 
-  # Plot points (smaller)
+  # Plot points (with legend for aimType)
   p <- add_trace(
     p,
-    data = plotdata,
+    data = plotdata %>% filter(aimType == "Development"),
     x = ~dateCreated,
     y = ~y_plot,
     type = "scatter",
     mode = "markers",
-    marker = list(size = 4, color = ~color),  # reduced from 6
+    marker = list(size = 4, color = color_development),
+    name = "Development",
     text = ~paste0(
       "<b>Barrier:</b> ", barrier,
       "<br><b>Date:</b> ", dateCreated,
@@ -697,7 +698,25 @@ create_barrier_plot <- function() {
       "<br><b>DOI:</b> ", doi
     ),
     hoverinfo = "text",
-    showlegend = FALSE
+    showlegend = TRUE
+  )
+  p <- add_trace(
+    p,
+    data = plotdata %>% filter(aimType == "Assessment"),
+    x = ~dateCreated,
+    y = ~y_plot,
+    type = "scatter",
+    mode = "markers",
+    marker = list(size = 4, color = color_assessment),
+    name = "Assessment",
+    text = ~paste0(
+      "<b>Barrier:</b> ", barrier,
+      "<br><b>Date:</b> ", dateCreated,
+      "<br><b>Aim Type:</b> ", aimType,
+      "<br><b>DOI:</b> ", doi
+    ),
+    hoverinfo = "text",
+    showlegend = TRUE
   )
   # Make y-axis range tighter
   p <- layout(
@@ -720,6 +739,7 @@ create_barrier_plot <- function() {
       y0 = y, y1 = y, yref = "y",
       line = list(color = "#cccccc", width = 1)
     )),
+    legend = list(title = list(text = "<b>Aim Type</b>")),
     height = 600
   )
   return(p)

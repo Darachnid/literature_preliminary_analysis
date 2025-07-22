@@ -44,7 +44,7 @@ create_rain_cloud_plot <- function() {
   
   plotdata <- papers %>%
     select(doi, dateCreated, aimID = aim) %>%
-    filter(!aimID %in% c("Cell Differentiation", "Religion", "MIN", "Review")) %>%
+    filter(!aimID %in% c("MIN", "Review")) %>%
     left_join(aims, by = "aimID") %>%
     select(aimType, Aim = aimLongName, DOI = doi, Date = dateCreated) %>%
     distinct() %>%
@@ -162,7 +162,7 @@ create_aims_table <- function() {
   
   plotdata <- papers %>%
     select(dateCreated, aimID = aim) %>%
-    filter(!aimID %in% c("Cell Differentiation", "Religion", "MIN", "Review")) %>%
+    filter(!aimID %in% c("MIN", "Review")) %>%
     left_join(aims, by = "aimID") %>%
     select(Aim = aimLongName, Date = dateCreated) %>%
     drop_na(Aim)
@@ -343,7 +343,7 @@ create_rain_cloud_type_plot <- function() {
            publisher = publisherID,
            journal   = journalID,
            aimID     = aim) %>%
-    filter(!aimID %in% c("Cell Differentiation", "Religion", "MIN", "Review")) %>%
+    filter(!aimID %in% c("MIN", "Review")) %>%
     left_join(aims, by = "aimID") %>%
     select(aimType, doi, dateCreated, title, publisher, journal) %>%
     distinct() %>%
@@ -1011,7 +1011,7 @@ create_aim_type_table <- function() {
 
   plotdata <- papers %>%
     select(dateCreated, aimID = aim) %>%
-    filter(!aimID %in% c("Cell Differentiation", "Religion", "MIN", "Review")) %>%
+    filter(!aimID %in% c("MIN", "Review")) %>%
     left_join(aims, by = "aimID") %>%
     select(aimType, Date = dateCreated) %>%
     drop_na(aimType)
@@ -1085,26 +1085,23 @@ create_aim_type_table <- function() {
 }
 
 ## ---- reusable plot-card module ----
-plot_card_ui <- function(id, title = NULL, subtitle = NULL, n = NULL, oneliner = NULL) {
+plot_card_ui <- function(id, title = NULL, subtitle = NULL, n = NULL) {
   ns <- NS(id)
   tagList(
     card(
       card_header(
         fluidRow(
-          column(7, style = "display: flex; align-items: center; gap: 10px;",
-            actionButton(ns("help"), "Help", class = "btn-sm btn-danger"),
-            actionButton(ns("desc"), "Description", class = "btn-sm btn-primary"),
-            if (!is.null(title) || !is.null(n) || !is.null(oneliner)) tags$div(
-              style = "display: flex; flex-direction: row; align-items: center; gap: 18px; margin-left: 10px; font-family: system-ui, sans-serif; width: 100%;",
-              tags$div(
-                style = "display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 0;",
-                if (!is.null(title)) tags$span(title, style = "font-size: 0.85em; color: #888; font-weight: normal; margin-bottom: 0;"),
-                if (!is.null(n)) tags$span(style = "font-size: 0.85em; color: #888; margin-top: 0;", paste0("n=", n))
-              ),
-              if (!is.null(oneliner)) tags$span(oneliner, style = "font-size: 0.67em; color: #888; margin-top: 0; max-width: 18em; white-space: normal; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;")
+          column(6, style = "display: flex; align-items: center; gap: 8px;",
+            if (!is.null(title) || !is.null(n)) tags$span(
+              style = "font-size: 0.95em; color: #444; background: #f7f7f7; border-radius: 8px; padding: 2px 10px; margin: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 0;",
+              if (!is.null(title)) tags$span(title, style = "font-weight: 600; margin-bottom: 0;"),
+              if (!is.null(n)) tags$span(paste0("Papers included in plot: n = ", n), style = "font-size: 0.85em; color: #888; margin-top: 0;")
             )
           ),
-          column(5)
+          column(6, style = "display: flex; align-items: center; justify-content: flex-end; gap: 8px;",
+            actionButton(ns("help"), "Help", class = "btn-sm btn-danger"),
+            actionButton(ns("desc"), "Description", class = "btn-sm btn-primary")
+          )
         ),
         if (!is.null(subtitle)) tags$div(tags$strong(subtitle), style = "margin-top: 0.5em;")
       ),
@@ -1158,7 +1155,7 @@ ui <- page_navbar(
   nav_panel("Papers by Aim",
     navs_tab_card(
       nav("Plot View",
-        plot_card_ui("rain", title = "Papers by Aim Over Time", n = length(unique(read_csv("paper_tbl.csv", show_col_types = FALSE)$doi)), oneliner = "Shows the distribution of research aims in cultivated meat over time.")
+        plot_card_ui("rain", title = "Papers Aims through Time", n = length(unique(read_csv("paper_tbl.csv", show_col_types = FALSE)$doi)))
       ),
       nav("Table View",
         card(
@@ -1172,7 +1169,7 @@ ui <- page_navbar(
   nav_panel("Papers by Aim Type",
     navs_tab_card(
       nav("Plot View",
-        plot_card_ui("rain_type", title = "Papers by Aim Type Over Time", n = length(unique(read_csv("paper_tbl.csv", show_col_types = FALSE)$doi)), oneliner = "Compares the prevalence of development vs. assessment aims through time.")
+        plot_card_ui("rain_type", NULL)
       ),
       nav("Table View",
         card(
@@ -1183,11 +1180,14 @@ ui <- page_navbar(
       )
     )
   ),
-  nav_panel("Papers by Justification", plot_card_ui("justification", title = "Justifications for Cultivated Meat Over Time", n = length(unique(read_csv("paper_tbl.csv", show_col_types = FALSE)$doi)), oneliner = "Highlights the well-being justifications cited in cultivated meat research.")),
+  nav_panel("Papers by Justification", plot_card_ui("justification", NULL)),
   nav_panel("Barriers to Development", 
     navs_tab_card(
       nav("Plot View",
-        plot_card_ui("barrier_plot", title = "Barriers to Development Over Time", n = length(unique(read_csv("paper_tbl.csv", show_col_types = FALSE)$doi)), oneliner = "Visualizes key technical barriers to developing cultivated meat and their frequency over time.")
+        card_body(
+          uiOutput("barrier_caption"),
+          plotlyOutput("barrier_plot", height = "600px")
+        )
       ),
       nav("Table View",
         card(
@@ -1201,7 +1201,10 @@ ui <- page_navbar(
   nav_panel("Barriers to Adoption", 
     navs_tab_card(
       nav("Plot View",
-        plot_card_ui("adoption_barrier_plot", title = "Barriers to Adoption Over Time", n = length(unique(read_csv("paper_tbl.csv", show_col_types = FALSE)$doi)), oneliner = "Shows the main obstacles to consumer and regulatory adoption of cultivated meat.")
+        card_body(
+          uiOutput("adoption_barrier_caption"),
+          plotlyOutput("adoption_barrier_plot", height = "600px")
+        )
       ),
       nav("Table View",
         card(
